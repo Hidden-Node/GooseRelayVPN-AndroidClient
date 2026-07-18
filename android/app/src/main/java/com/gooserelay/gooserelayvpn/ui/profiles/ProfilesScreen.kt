@@ -189,7 +189,7 @@ fun parseGooseRelayProtocol(raw: String): ProfileEntity? {
 private fun getFileNameFromUri(context: Context, uri: Uri): String? {
     return context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
         val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-        if (cursor.moveToFirst()) {
+        if (cursor.moveToFirst() && nameIndex >= 0) {
             val full = cursor.getString(nameIndex)
             full.substringBeforeLast(".")
         } else null

@@ -128,6 +128,7 @@ fun SettingsScreen(
         }
 
         LaunchedEffect(debugTiming, socksHost, socksPort, socksUser, socksPass, googleHost, sniText, scriptKeys, tunnelKey) {
+            if ((socksUser.isBlank()) != (socksPass.isBlank())) return@LaunchedEffect
             val portInt = socksPort.toIntOrNull()?.coerceIn(1, 65535)
             val updated = profile.copy(
                 debugTiming = debugTiming,

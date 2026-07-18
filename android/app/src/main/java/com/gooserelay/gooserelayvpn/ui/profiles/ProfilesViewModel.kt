@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
@@ -87,13 +88,20 @@ class ProfilesViewModel @Inject constructor(
                     connection.requestMethod = "GET"
                     connection.connectTimeout = 10000
                     connection.readTimeout = 10000
+                    val code = connection.responseCode
+                    if (code / 100 != 2) {
+                        val errorBody = try {
+                            connection.errorStream?.bufferedReader()?.use { it.readText() }?.take(200) ?: ""
+                        } catch (_: Exception) { "" }
+                        throw IOException("HTTP $code: $errorBody")
+                    }
                     connection.inputStream.bufferedReader().use { it.readText() }
                 }
 
                 val remoteProfile = parseProfileFromJson(json, remoteUrl = selectedProfile.remoteUrl)
                 if (remoteProfile != null) {
                     val updated = selectedProfile.copy(
-                        name = if (selectedProfile.remoteUrl != null) remoteProfile.name else selectedProfile.name,
+                        name = if (remoteProfile.name.isNotBlank()) remoteProfile.name else selectedProfile.name,
                         debugTiming = remoteProfile.debugTiming,
                         socksHost = remoteProfile.socksHost,
                         socksPort = remoteProfile.socksPort,
@@ -128,6 +136,13 @@ class ProfilesViewModel @Inject constructor(
                     connection.requestMethod = "GET"
                     connection.connectTimeout = 10000
                     connection.readTimeout = 10000
+                    val code = connection.responseCode
+                    if (code / 100 != 2) {
+                        val errorBody = try {
+                            connection.errorStream?.bufferedReader()?.use { it.readText() }?.take(200) ?: ""
+                        } catch (_: Exception) { "" }
+                        throw IOException("HTTP $code: $errorBody")
+                    }
                     connection.inputStream.bufferedReader().use { it.readText() }
                 }
 
