@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 MOBILE_TOOLS_VERSION="v0.0.0-20260312152759-81488f6aeb60"
 
 # Always install a pinned, known-good gomobile/gobind pair.
+# go install skipped - using patched gomobile
 go install "golang.org/x/mobile/cmd/gomobile@${MOBILE_TOOLS_VERSION}"
 go install "golang.org/x/mobile/cmd/gobind@${MOBILE_TOOLS_VERSION}"
 

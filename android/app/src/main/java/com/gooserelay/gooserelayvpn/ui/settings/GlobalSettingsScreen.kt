@@ -23,7 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -57,7 +57,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -67,7 +69,6 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvFilterChip
-import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvPrimaryActionButton
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
@@ -110,27 +111,15 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
     val splitPackagesCount by remember(draft.splitPackagesCsv) {
         derivedStateOf { parseCsv(draft.splitPackagesCsv).size }
     }
-    fun saveGlobalSettings() {
-        if (socksPortMissing || httpPortMissing) {
-            scope.launch {
-                snackbarHostState.showSnackbar(context.getString(R.string.global_settings_ports_required_msg))
-            }
-            return
+    val clipboardManager = LocalClipboardManager.current
+    val gson = remember { com.google.gson.Gson() }
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(draft) {
+        val normalized = normalize(draft)
+        if (normalized != current) {
+            vm.save(normalized)
         }
-        if (socksPortValue !in 1025..65535 || httpPortValue !in 1025..65535) {
-            scope.launch {
-                snackbarHostState.showSnackbar(context.getString(R.string.global_settings_ports_range_msg))
-            }
-            return
-        }
-        val safeSocksPort = socksPortValue ?: return
-        val safeHttpPort = httpPortValue ?: return
-        draft = draft.copy(
-            internetSharingSocksPort = safeSocksPort,
-            internetSharingHttpPort = safeHttpPort
-        )
-        vm.save(normalize(draft))
-        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.global_settings_saved_msg)) }
     }
 
     Scaffold(
@@ -139,13 +128,42 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
             MdvTopAppBar(
                 title = stringResource(R.string.settings_title),
                 actions = {
-                    IconButton(
-                        onClick = ::saveGlobalSettings
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Save,
-                            contentDescription = stringResource(R.string.action_save)
-                        )
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(imageVector = Icons.Filled.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Export to Clipboard") },
+                                onClick = {
+                                    menuExpanded = false
+                                    val json = gson.toJson(draft)
+                                    clipboardManager.setText(AnnotatedString(json))
+                                    scope.launch { snackbarHostState.showSnackbar("Settings copied to clipboard") }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Import from Clipboard") },
+                                onClick = {
+                                    menuExpanded = false
+                                    val text = clipboardManager.getText()?.text
+                                    if (!text.isNullOrBlank()) {
+                                        try {
+                                            val imported = gson.fromJson(text, GlobalSettings::class.java)
+                                            draft = imported
+                                            scope.launch { snackbarHostState.showSnackbar("Settings imported from clipboard") }
+                                        } catch (e: Exception) {
+                                            scope.launch { snackbarHostState.showSnackbar("Failed to parse settings JSON") }
+                                        }
+                                    } else {
+                                        scope.launch { snackbarHostState.showSnackbar("Clipboard is empty") }
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -401,13 +419,6 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                         }
                             }
                         }
-                    }
-                    item {
-                        MdvPrimaryActionButton(
-                            text = stringResource(R.string.global_settings_save_button),
-                            onClick = ::saveGlobalSettings,
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
                 }
             }

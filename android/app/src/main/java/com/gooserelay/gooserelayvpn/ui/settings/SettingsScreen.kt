@@ -2,10 +2,12 @@ package com.gooserelay.gooserelayvpn.ui.settings
 
 import android.content.Context
 import android.net.Uri
+import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
@@ -56,17 +59,30 @@ fun SettingsScreen(
     var scriptKeys by remember(profile.id) { mutableStateOf(profile.scriptKeysText) }
     var tunnelKey by remember(profile.id) { mutableStateOf(profile.tunnelKey) }
 
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val json = readTextFromUri(context, uri)
-        val updated = viewModel.importJsonToProfile(profile, json)
+    val clipboardManager = LocalClipboardManager.current
+
+    fun applyImportedProfile(json: String) {
+        val raw = if (json.trim().startsWith("goose-relay://")) {
+            try {
+                val base64Content = json.trim().substring("goose-relay://".length)
+                val decodedBytes = Base64.decode(base64Content, Base64.DEFAULT)
+                String(decodedBytes)
+            } catch (_: Exception) {
+                validationMessage = "Import failed: invalid goose-relay:// format."
+                return
+            }
+        } else {
+            json
+        }
+
+        val updated = viewModel.importJsonToProfile(profile, raw)
         if (updated == null) {
             validationMessage = "Import failed: invalid JSON format."
-            return@rememberLauncherForActivityResult
+            return
         }
         if ((updated.socksUser.isBlank()) != (updated.socksPass.isBlank())) {
             validationMessage = "Import rejected: socks_user and socks_pass must both be set or both be empty (SOCKS5 auth requires both values)."
-            return@rememberLauncherForActivityResult
+            return
         }
         debugTiming = updated.debugTiming
         socksHost = updated.socksHost
@@ -77,6 +93,11 @@ fun SettingsScreen(
         sniText = updated.sniJson.removePrefix("[").removeSuffix("]").replace("\"", "")
         scriptKeys = updated.scriptKeysText
         tunnelKey = updated.tunnelKey
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        applyImportedProfile(readTextFromUri(context, uri))
     }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -105,6 +126,25 @@ fun SettingsScreen(
                 validationMessage = null
             }
         }
+
+        LaunchedEffect(debugTiming, socksHost, socksPort, socksUser, socksPass, googleHost, sniText, scriptKeys, tunnelKey) {
+            val portInt = socksPort.toIntOrNull()?.coerceIn(1, 65535)
+            val updated = profile.copy(
+                debugTiming = debugTiming,
+                socksHost = socksHost,
+                socksPort = portInt ?: profile.socksPort,
+                socksUser = socksUser,
+                socksPass = socksPass,
+                googleHost = googleHost,
+                sniJson = if (sniText.isBlank()) "[]" else "[\"" + sniText.split(",").map { it.trim() }.filter { it.isNotBlank() }.joinToString("\",\"") + "\"]",
+                scriptKeysText = scriptKeys,
+                tunnelKey = tunnelKey
+            )
+            if (updated != profile) {
+                viewModel.saveProfile(updated)
+            }
+        }
+
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -119,27 +159,18 @@ fun SettingsScreen(
             OutlinedTextField(sniText, { sniText = it }, label = { Text("sni (comma separated)") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(scriptKeys, { scriptKeys = it }, label = { Text("script_keys (one per line)") }, minLines = 3, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(tunnelKey, { tunnelKey = it }, label = { Text("tunnel_key") }, modifier = Modifier.fillMaxWidth())
-            Button(onClick = {
-                if ((socksUser.isBlank()) != (socksPass.isBlank())) {
-                    validationMessage = "socks_user and socks_pass must both be set or both be empty"
-                    return@Button
-                }
-                viewModel.saveProfile(
-                    profile.copy(
-                        debugTiming = debugTiming,
-                        socksHost = socksHost,
-                        socksPort = socksPort.toIntOrNull()?.coerceIn(1, 65535) ?: 1080,
-                        socksUser = socksUser,
-                        socksPass = socksPass,
-                        googleHost = googleHost,
-                        sniJson = "[\"" + sniText.split(",").map { it.trim() }.filter { it.isNotBlank() }.joinToString("\",\"") + "\"]",
-                        scriptKeysText = scriptKeys,
-                        tunnelKey = tunnelKey
-                    )
-                )
-            }) { Text("Save Settings") }
-            Button(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("Import JSON") }
-            Button(onClick = { exportLauncher.launch("goose_profile.json") }) { Text("Export JSON") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }, modifier = Modifier.weight(1f)) { Text("Import File") }
+                Button(onClick = {
+                    val text = clipboardManager.getText()?.text
+                    if (text.isNullOrBlank()) {
+                        validationMessage = "Clipboard is empty"
+                    } else {
+                        applyImportedProfile(text)
+                    }
+                }, modifier = Modifier.weight(1f)) { Text("From Clipboard") }
+            }
+            Button(onClick = { exportLauncher.launch("goose_profile.json") }, modifier = Modifier.fillMaxWidth()) { Text("Export JSON File") }
         }
     }
 }

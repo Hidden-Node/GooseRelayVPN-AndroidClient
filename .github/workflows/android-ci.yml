@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: goose-relay-android-debug-universal-apk
-          path: android/app/build/outputs/apk/debug/app-universal-debug.apk
+          path: android/app/build/outputs/apk/debug/GooseRelayVPN.apk
 
       - name: Upload Go AAR artifact
         uses: actions/upload-artifact@v4

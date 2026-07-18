@@ -2,10 +2,10 @@ package com.gooserelay.gooserelayvpn.ui.profiles
 
 import android.content.Context
 import android.net.Uri
+import android.util.Base64
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,19 +20,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -40,6 +44,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -55,9 +60,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.gson.Gson
@@ -67,7 +73,6 @@ import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
-import com.gooserelay.gooserelayvpn.ui.profiles.ProfilesViewModel
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 
 data class ScriptKeyEntry(
@@ -76,33 +81,26 @@ data class ScriptKeyEntry(
 )
 
 fun parseScriptKeysText(text: String): List<ScriptKeyEntry> {
-    Log.d("ProfilesScreen", "parseScriptKeysText input: '$text'")
-    val result = text.lines()
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
+    if (text.isBlank()) return emptyList()
+    Log.d("ProfilesScreen", "Parsing script keys text: '$text'")
+    return text.split("\n")
+        .filter { it.isNotBlank() }
         .map { line ->
             if (line.contains("|")) {
                 val parts = line.split("|")
-                val entry = ScriptKeyEntry(
-                    id = parts.getOrElse(0) { "" }.trim(),
-                    account = parts.getOrElse(1) { "" }.trim()
-                )
-                Log.d("ProfilesScreen", "Parsed pipe: id='${entry.id}', account='${entry.account}'")
-                entry
+                val id = parts[0].trim()
+                val account = parts.getOrElse(1) { "" }.trim()
+                Log.d("ProfilesScreen", "  Parsed pipe: id='$id', account='$account'")
+                ScriptKeyEntry(id, account)
             } else {
-                Log.d("ProfilesScreen", "Parsed no-pipe: id='${line.trim()}'")
-                ScriptKeyEntry(id = line.trim(), account = "")
+                val id = line.trim()
+                Log.d("ProfilesScreen", "  Parsed single: id='$id'")
+                ScriptKeyEntry(id, "")
             }
         }
-    Log.d("ProfilesScreen", "parseScriptKeysText result: $result")
-    return result
 }
 
 fun scriptKeysToText(entries: List<ScriptKeyEntry>): String {
-    Log.d("ProfilesScreen", "scriptKeysToText input: ${entries.size} entries")
-    entries.forEachIndexed { i, entry ->
-        Log.d("ProfilesScreen", "  [$i] id='${entry.id}', account='${entry.account}'")
-    }
     val result = entries
         .filter { it.id.isNotBlank() }
         .joinToString("\n") { entry ->
@@ -112,16 +110,135 @@ fun scriptKeysToText(entries: List<ScriptKeyEntry>): String {
     return result
 }
 
+fun parseProfileFromJson(raw: String, defaultName: String? = null): ProfileEntity? {
+    return try {
+        val root = Gson().fromJson(raw, JsonObject::class.java)
+        
+        // Check if it has at least one identifying part
+        if (!root.has("script_keys") && !root.has("tunnel_key")) return null
+
+        val name = root.get("name")?.asString ?: defaultName ?: "Imported"
+        val debugTiming = root.get("debug_timing")?.asBoolean ?: false
+        val socksHost = root.get("socks_host")?.asString ?: "127.0.0.1"
+        val socksPort = root.get("socks_port")?.asInt ?: 1080
+        val socksUser = root.get("socks_user")?.asString ?: ""
+        val socksPass = root.get("socks_pass")?.asString ?: ""
+        val googleHost = root.get("google_host")?.asString ?: "216.239.38.120"
+        val sniJson = when {
+            root.get("sni")?.isJsonArray == true -> Gson().toJson(root.getAsJsonArray("sni").mapNotNull { it.asString })
+            root.get("sni")?.isJsonPrimitive == true -> Gson().toJson(listOf(root.get("sni").asString))
+            else -> "[\"www.google.com\", \"mail.google.com\", \"accounts.google.com\"]"
+        }
+        val scriptKeysText = when {
+            root.get("script_keys")?.isJsonArray == true -> {
+                root.getAsJsonArray("script_keys").mapNotNull { element ->
+                    when {
+                        element.isJsonObject -> {
+                            val obj = element.asJsonObject
+                            val id = obj.get("id")?.asString?.trim()
+                            val account = obj.get("account")?.asString?.trim()
+                            if (id.isNullOrBlank()) null
+                            else if (account.isNullOrBlank()) id
+                            else "$id|$account"
+                        }
+                        element.isJsonPrimitive -> element.asString.trim()
+                        else -> null
+                    }
+                }.filter { it.isNotBlank() }.joinToString("\n")
+            }
+            root.get("script_keys")?.isJsonPrimitive == true -> root.get("script_keys").asString.trim()
+            else -> ""
+        }
+        val coalesceStepMs = root.get("coalesce_step_ms")?.asInt ?: 0
+        val idleSlotsPerBucket = root.get("idle_slots_per_bucket")?.asInt?.coerceIn(1, 3) ?: 2
+        val tunnelKey = root.get("tunnel_key")?.asString ?: ""
+
+        ProfileEntity(
+            name = name,
+            debugTiming = debugTiming,
+            socksHost = socksHost,
+            socksPort = socksPort,
+            socksUser = socksUser,
+            socksPass = socksPass,
+            googleHost = googleHost,
+            sniJson = sniJson,
+            scriptKeysText = scriptKeysText,
+            tunnelKey = tunnelKey,
+            coalesceStepMs = coalesceStepMs,
+            idleSlotsPerBucket = idleSlotsPerBucket,
+            remoteUrl = null
+        )
+    } catch (_: Exception) {
+        null
+    }
+}
+
+fun parseGooseRelayProtocol(raw: String): ProfileEntity? {
+    val trimmed = raw.trim()
+    if (!trimmed.startsWith("goose-relay://")) return null
+    return try {
+        val base64Content = trimmed.substring("goose-relay://".length)
+        val decodedBytes = Base64.decode(base64Content, Base64.DEFAULT)
+        val decodedString = String(decodedBytes)
+        parseProfileFromJson(decodedString)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun getFileNameFromUri(context: Context, uri: Uri): String? {
+    return context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+        if (cursor.moveToFirst()) {
+            val full = cursor.getString(nameIndex)
+            full.substringBeforeLast(".")
+        } else null
+    }
+}
+
 @Composable
 fun ProfilesScreen(
     onBack: () -> Unit
 ) {
     val viewModel: ProfilesViewModel = hiltViewModel()
     val profiles by viewModel.profiles.collectAsState()
+    val isUpdating by viewModel.isUpdating.collectAsState()
+    val updateMessage by viewModel.updateMessage.collectAsState()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ProfileEntity?>(null) }
     var profilePendingDelete by remember { mutableStateOf<ProfileEntity?>(null) }
+    var showErrorDialog by remember { mutableStateOf<String?>(null) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var profileToExport by remember { mutableStateOf<ProfileEntity?>(null) }
+
+    val clipboardManager = LocalClipboardManager.current
+
+    LaunchedEffect(updateMessage) {
+        updateMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearUpdateMessage()
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null || profileToExport == null) return@rememberLauncherForActivityResult
+        writeTextToUri(context, uri, ConfigGenerator.exportProfileJson(profileToExport!!))
+        profileToExport = null
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val raw = readTextFromUri(context, uri)
+        val fileName = getFileNameFromUri(context, uri)
+        val profile = viewModel.parseProfileFromJson(raw, fileName)
+        if (profile != null) {
+            viewModel.addProfile(profile)
+        } else {
+            showErrorDialog = "Import failed: invalid JSON format."
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -129,12 +246,70 @@ fun ProfilesScreen(
                 title = "Profiles",
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = { editing = null; showEditor = true }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add")
+                    if (isUpdating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(4.dp),
+                            strokeWidth = 2.dp,
+                            color = MdvColor.Primary
+                        )
+                    } else {
+                        IconButton(onClick = { viewModel.updateRemoteProfile(context) }) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Update Remote")
+                        }
+                    }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Add")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("From Clipboard") },
+                                onClick = {
+                                    menuExpanded = false
+                                    val text = clipboardManager.getText()?.text?.trim()
+                                    if (!text.isNullOrBlank()) {
+                                        when {
+                                            text.startsWith("http://") || text.startsWith("https://") -> {
+                                                viewModel.importProfileFromUrl(text, context)
+                                            }
+                                            else -> {
+                                                val profile = parseGooseRelayProtocol(text) ?: parseProfileFromJson(text)
+                                                if (profile != null) {
+                                                    viewModel.addProfile(profile)
+                                                } else {
+                                                    showErrorDialog = "Import failed: invalid JSON, URL, or goose-relay:// format."
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        showErrorDialog = "Clipboard is empty"
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("From JSON File") },
+                                onClick = {
+                                    menuExpanded = false
+                                    importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Add Manual") },
+                                onClick = {
+                                    menuExpanded = false
+                                    editing = null
+                                    showEditor = true
+                                }
+                            )
+                        }
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (profiles.isEmpty()) {
             Box(
@@ -148,9 +323,14 @@ fun ProfilesScreen(
                         tint = MdvColor.OnSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(MdvSpace.S3))
-                    Text("No profiles yet")
-                    Spacer(modifier = Modifier.height(MdvSpace.S2))
-                    Button(onClick = { editing = null; showEditor = true }) { Text("Create Profile") }
+                    Text("No profiles yet", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(MdvSpace.S1))
+                    Text(
+                        "Tap the + button above to add a profile\nor import from clipboard/file",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MdvColor.OnSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 }
             }
         } else {
@@ -194,6 +374,41 @@ fun ProfilesScreen(
                             IconButton(onClick = { editing = profile; showEditor = true }) {
                                 Icon(Icons.Filled.Edit, contentDescription = "Edit")
                             }
+
+                            var shareMenuExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { shareMenuExpanded = true }) {
+                                    Icon(Icons.Filled.Share, contentDescription = "Share")
+                                }
+                                DropdownMenu(
+                                    expanded = shareMenuExpanded,
+                                    onDismissRequest = { shareMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("to Clipboard") },
+                                        onClick = {
+                                            shareMenuExpanded = false
+                                            val exportObj = JsonObject()
+                                            exportObj.addProperty("name", profile.name)
+                                            exportObj.addProperty("script_keys", profile.scriptKeysText)
+                                            exportObj.addProperty("tunnel_key", profile.tunnelKey)
+                                            val json = Gson().toJson(exportObj)
+                                            val base64 = Base64.encodeToString(json.toByteArray(), Base64.NO_WRAP)
+                                            val protocol = "goose-relay://$base64"
+                                            clipboardManager.setText(AnnotatedString(protocol))
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("to JSON") },
+                                        onClick = {
+                                            shareMenuExpanded = false
+                                            profileToExport = profile
+                                            exportLauncher.launch("goose_profile_${profile.name}.json")
+                                        }
+                                    )
+                                }
+                            }
+
                             IconButton(onClick = { profilePendingDelete = profile }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Delete")
                             }
@@ -204,9 +419,22 @@ fun ProfilesScreen(
         }
     }
 
+    val dialogError = showErrorDialog
+    if (dialogError != null) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = null },
+            confirmButton = {
+                TextButton(onClick = { showErrorDialog = null }) {
+                    Text("OK")
+                }
+            },
+            title = { Text("Notification") },
+            text = { Text(dialogError) }
+        )
+    }
+
     if (showEditor) {
         ProfileEditorDialog(
-            context = context,
             profile = editing,
             onSave = {
                 if (editing == null) viewModel.addProfile(it) else viewModel.updateProfile(it)
@@ -251,7 +479,6 @@ fun ProfilesScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileEditorDialog(
-    context: Context,
     profile: ProfileEntity?,
     onSave: (ProfileEntity) -> Unit,
     onDismiss: () -> Unit
@@ -264,106 +491,12 @@ private fun ProfileEditorDialog(
     var socksPass by remember { mutableStateOf(profile?.socksPass ?: "") }
     var googleHost by remember { mutableStateOf(profile?.googleHost ?: "216.239.38.120") }
     var sniCsv by remember { mutableStateOf(profile?.sniJson?.replace("[", "")?.replace("]", "")?.replace("\"", "") ?: "www.google.com, mail.google.com, accounts.google.com") }
-    var scriptKeysText by remember { mutableStateOf(profile?.scriptKeysText ?: "") }
     var scriptKeyEntries by remember { mutableStateOf(parseScriptKeysText(profile?.scriptKeysText ?: "").ifEmpty { listOf(ScriptKeyEntry()) }) }
     var tunnelKey by remember { mutableStateOf(profile?.tunnelKey ?: "") }
     var coalesceStepMs by remember { mutableStateOf((profile?.coalesceStepMs ?: 0).toString()) }
     var idleSlotsPerBucket by remember { mutableStateOf((profile?.idleSlotsPerBucket ?: 2).toString()) }
+    var remoteUrl by remember { mutableStateOf(profile?.remoteUrl ?: "") }
     var showErrorDialog by remember { mutableStateOf<String?>(null) }
-
-    Log.d("ProfilesScreen", "=== DIALOG INIT === profile=${profile?.name ?: "NEW"}")
-    Log.d("ProfilesScreen", "Loaded scriptKeysText: '${profile?.scriptKeysText ?: "(empty)"}'")
-    Log.d("ProfilesScreen", "Parsed scriptKeyEntries (${scriptKeyEntries.size}): $scriptKeyEntries")
-
-    LaunchedEffect(scriptKeyEntries) {
-        Log.d("ProfilesScreen", "*** scriptKeyEntries CHANGED (${scriptKeyEntries.size} items) ***")
-        scriptKeyEntries.forEachIndexed { i, entry ->
-            Log.d("ProfilesScreen", "  [$i] id='${entry.id}', account='${entry.account}'")
-        }
-    }
-
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            val raw = readTextFromUri(context, uri)
-            val root = Gson().fromJson(raw, JsonObject::class.java)
-            name = root.get("name")?.asString ?: name
-            debugTiming = root.get("debug_timing")?.asBoolean ?: debugTiming
-            socksHost = root.get("socks_host")?.asString ?: socksHost
-            socksPort = root.get("socks_port")?.asInt?.toString() ?: socksPort
-            socksUser = root.get("socks_user")?.asString ?: socksUser
-            socksPass = root.get("socks_pass")?.asString ?: socksPass
-            if ((socksUser.isBlank()) != (socksPass.isBlank())) {
-                showErrorDialog = "Import rejected: socks_user and socks_pass must both be set or both be empty (SOCKS5 auth requires both values)."
-                return@runCatching
-            }
-            showErrorDialog = null
-            googleHost = root.get("google_host")?.asString ?: googleHost
-            sniCsv = when {
-                root.get("sni")?.isJsonArray == true -> root.getAsJsonArray("sni")?.mapNotNull { it.asString }?.joinToString(", ") ?: ""
-                root.get("sni")?.isJsonPrimitive == true -> root.get("sni")?.asString ?: ""
-                else -> ""
-            }
-            val keys = when {
-                root.get("script_keys")?.isJsonArray == true -> {
-                    Log.d("ProfilesScreen", "=== IMPORTING SCRIPT KEYS FROM JSON ===")
-                    root.getAsJsonArray("script_keys")?.mapNotNull { element ->
-                        when {
-                            element.isJsonObject -> {
-                                val obj = element.asJsonObject
-                                val id = obj.get("id")?.asString?.trim()
-                                val account = obj.get("account")?.asString?.trim()
-                                Log.d("ProfilesScreen", "Import JSON obj: id='$id', account='$account'")
-                                if (id.isNullOrBlank()) null
-                                else if (account.isNullOrBlank()) {
-                                    Log.d("ProfilesScreen", "  -> No account, saving as: '$id'")
-                                    id
-                                }
-                                else {
-                                    val result = "$id|$account"
-                                    Log.d("ProfilesScreen", "  -> With account, saving as: '$result'")
-                                    result
-                                }
-                            }
-                            element.isJsonPrimitive -> element.asString.trim()
-                            else -> null
-                        }
-                    }?.filter { it.isNotBlank() }?.joinToString("\n") ?: ""
-                }
-                else -> ""
-            }
-            Log.d("ProfilesScreen", "Final imported keys text: '$keys'")
-            scriptKeysText = keys
-            Log.d("ProfilesScreen", "About to parse imported keys with parseScriptKeysText()")
-            scriptKeyEntries = parseScriptKeysText(keys)
-            Log.d("ProfilesScreen", "After parsing, scriptKeyEntries has ${scriptKeyEntries.size} items")
-            coalesceStepMs = (root.get("coalesce_step_ms")?.asInt ?: 0).toString()
-            idleSlotsPerBucket = (root.get("idle_slots_per_bucket")?.asInt?.coerceIn(1, 3) ?: 2).toString()
-            tunnelKey = root.get("tunnel_key")?.asString ?: tunnelKey
-        }
-    }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val draft = ProfileEntity(
-            id = profile?.id ?: 0,
-            name = name,
-            debugTiming = debugTiming,
-            socksHost = socksHost,
-            socksPort = socksPort.toIntOrNull()?.coerceIn(1, 65535) ?: 1080,
-            socksUser = socksUser,
-            socksPass = socksPass,
-            googleHost = googleHost,
-            sniJson = if (sniCsv.isBlank()) "[]" else sniCsv.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                .joinToString(prefix = "[\"", postfix = "\"]", separator = "\",\""),
-            scriptKeysText = scriptKeysToText(scriptKeyEntries),
-            tunnelKey = tunnelKey,
-            coalesceStepMs = coalesceStepMs.toIntOrNull() ?: 0,
-            idleSlotsPerBucket = idleSlotsPerBucket.toIntOrNull()?.coerceIn(1, 3) ?: 2,
-            isSelected = profile?.isSelected ?: false,
-            createdAt = profile?.createdAt ?: System.currentTimeMillis()
-        )
-        writeTextToUri(context, uri, ConfigGenerator.exportProfileJson(draft))
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -381,13 +514,8 @@ private fun ProfileEditorDialog(
                 }
                 val sniJson = sniCsv.split(",").map { it.trim() }.filter { it.isNotBlank() }
                     .joinToString(prefix = "[\"", postfix = "\"]", separator = "\",\"")
-                Log.d("ProfilesScreen", "=== SAVING PROFILE ===")
-                Log.d("ProfilesScreen", "scriptKeyEntries state (${scriptKeyEntries.size} entries):")
-                scriptKeyEntries.forEachIndexed { i, entry ->
-                    Log.d("ProfilesScreen", "  [$i] id='${entry.id}', account='${entry.account}'")
-                }
+                
                 val scriptKeysForSave = scriptKeysToText(scriptKeyEntries)
-                Log.d("ProfilesScreen", "Final scriptKeysText to save: '$scriptKeysForSave'")
                 onSave(
                     ProfileEntity(
                         id = profile?.id ?: 0,
@@ -403,6 +531,7 @@ private fun ProfileEditorDialog(
                         tunnelKey = tunnelKey,
                         coalesceStepMs = coalesceStepMs.toIntOrNull() ?: 0,
                         idleSlotsPerBucket = idleSlotsPerBucket.toIntOrNull()?.coerceIn(1, 3) ?: 2,
+                        remoteUrl = remoteUrl.ifBlank { null },
                         isSelected = profile?.isSelected ?: false,
                         createdAt = profile?.createdAt ?: System.currentTimeMillis()
                     )
@@ -416,10 +545,13 @@ private fun ProfileEditorDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }, modifier = Modifier.weight(1f)) { Text("Import JSON") }
-                    OutlinedButton(onClick = { exportLauncher.launch("goose_profile.json") }, modifier = Modifier.weight(1f)) { Text("Export JSON") }
-                }
+                OutlinedTextField(
+                    value = remoteUrl,
+                    onValueChange = { remoteUrl = it },
+                    label = { Text("Remote URL (Subscription)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    supportingText = { Text("If set, this profile will update from this URL") }
+                )
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Profile Name") })
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Debug Timing")
@@ -436,7 +568,7 @@ private fun ProfileEditorDialog(
                         readOnly = true,
                         label = { Text("socks_host") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = socksHostExpanded) },
-                        modifier = Modifier.menuAnchor()
+                        modifier = Modifier.menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
                     )
                     ExposedDropdownMenu(
                         expanded = socksHostExpanded,

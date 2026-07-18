@@ -25,7 +25,7 @@ data class GlobalSettings(
     val internetSharingSocksPort: Int = 8090,
     val internetSharingHttpPort: Int = 8091,
     val internetSharingUser: String = "",
-    val internetSharingPass: String = ""
+    val internetSharingPass: String = "",
 )
 
 object GlobalSettingsStore {

@@ -144,4 +144,9 @@
     <string name="project_main_github">https://github.com/Kianmhz/GooseRelayVPN</string>
     <string name="project_android_client_github">https://github.com/Hidden-Node/GooseRelayVPN-AndroidClient</string>
     <string name="engine_version">v1.7.1</string>
+    <string name="profiles_update_success">Profile updated from remote successfully</string>
+    <string name="profiles_update_error">Failed to update profile: %1$s</string>
+    <string name="profiles_updating">Updating from remote...</string>
+    <string name="profiles_no_selection_update">Please select a profile to update</string>
+    <string name="profiles_no_remote_url">This profile is local and doesn\'t have a remote URL to update from.</string>
 </resources>

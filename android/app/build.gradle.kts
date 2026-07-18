@@ -11,7 +11,7 @@ android {
     compileSdk = 36
     val appVersionName = System.getenv("ANDROID_VERSION_NAME")
         ?.takeIf { it.isNotBlank() }
-        ?: "1.0.0"
+        ?: "1.7.1"
     val appVersionCode = System.getenv("ANDROID_VERSION_CODE")
         ?.toIntOrNull()
         ?: 1
@@ -64,6 +64,18 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    applicationVariants.all {
+        outputs.all {
+            val output = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
+            val abi = output.getFilter(com.android.build.OutputFile.ABI)
+            output.outputFileName = when (abi) {
+                null -> "GooseRelayVPN.apk"
+                "universal" -> "GooseRelayVPN.apk"
+                else -> "GooseRelayVPN-$abi.apk"
+            }
         }
     }
 
