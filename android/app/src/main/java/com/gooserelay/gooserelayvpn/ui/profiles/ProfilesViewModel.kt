@@ -175,7 +175,7 @@ class ProfilesViewModel @Inject constructor(
             val name = root.get("name")?.asString ?: defaultName ?: "Imported"
             val debugTiming = root.get("debug_timing")?.asBoolean ?: false
             val socksHost = root.get("socks_host")?.asString ?: "127.0.0.1"
-            val socksPort = root.get("socks_port")?.asInt ?: 1080
+            val socksPort = root.get("socks_port")?.asInt?.coerceIn(1024, 65535) ?: 1080
             val socksUser = root.get("socks_user")?.asString ?: ""
             val socksPass = root.get("socks_pass")?.asString ?: ""
             val googleHost = root.get("google_host")?.asString ?: "216.239.38.120"
