@@ -20,6 +20,7 @@ class ProfilesViewModelParseTest {
         override suspend fun getSelectedProfile(): ProfileEntity? = null
         override fun getSelectedProfileFlow(): Flow<ProfileEntity?> = emptyFlow()
         override suspend fun getNewestProfile(): ProfileEntity? = null
+        override suspend fun getAllOnce(): List<ProfileEntity> = emptyList()
         override suspend fun insertProfile(profile: ProfileEntity): Long = 0L
         override suspend fun updateProfile(profile: ProfileEntity) {}
         override suspend fun deleteProfile(profile: ProfileEntity) {}
