@@ -14,7 +14,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @RequiresApi(Build.VERSION_CODES.N)
 class VpnTileService : TileService() {
@@ -49,21 +51,40 @@ class VpnTileService : TileService() {
             return
         }
 
-        tileScope.launch(Dispatchers.IO) {
-            val selectedProfile = AppDatabase.getInstance(this@VpnTileService)
-                .profileDao()
-                .getSelectedProfile()
+        tileScope.launch {
+            // Read the selected profile on a background thread — Room
+            // call must not block the system's main thread or ANR the
+            // quick-settings shade.
+            val selectedProfile = withContext(Dispatchers.IO) {
+                AppDatabase.getInstance(this@VpnTileService)
+                    .profileDao()
+                    .getSelectedProfile()
+            }
 
-            launch(Dispatchers.Main) {
-                if (selectedProfile != null) {
-                    VpnManager.connect(this@VpnTileService, selectedProfile)
-                    updateTile()
-                } else {
-                    openApp()
-                }
+            // If the tile service was torn down while we were reading
+            // the DB (user dismissed the shade, or Android killed the
+            // service), abandon the connect — tileScope is cancelled
+            // in onDestroy, but cancellation is cooperative.
+            if (!isActive) return@launch
+
+            // Back on Dispatchers.Main (the scope's default dispatcher).
+            if (selectedProfile != null) {
+                VpnManager.connect(this@VpnTileService, selectedProfile)
+                updateTile()
+            } else {
+                openApp()
             }
         }
     }
+
+    /**
+     * Test-only: returns the action the tile should take given the current
+     * selected profile. Pure function — does not touch Android framework.
+     */
+    internal enum class TileAction { CONNECT, OPEN_APP }
+
+    internal fun tileActionForSelectedProfile(selectedProfile: com.gooserelay.gooserelayvpn.data.local.ProfileEntity?): TileAction =
+        if (selectedProfile != null) TileAction.CONNECT else TileAction.OPEN_APP
 
     private fun openApp() {
         val intent = Intent(this, MainActivity::class.java)
