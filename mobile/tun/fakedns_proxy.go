@@ -3,6 +3,7 @@ package tun
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -10,6 +11,8 @@ import (
 
 type FakeDNSProxy struct {
 	RealSocksAddr string
+	SocksUser     string
+	SocksPass     string
 	LocalPort     int
 	dnsMap        *DNSMapper
 	listener      net.Listener
@@ -18,13 +21,88 @@ type FakeDNSProxy struct {
 	wg            sync.WaitGroup
 }
 
-func NewFakeDNSProxy(realSocksAddr string, dnsMap *DNSMapper) *FakeDNSProxy {
+func NewFakeDNSProxy(realSocksAddr, socksUser, socksPass string, dnsMap *DNSMapper) *FakeDNSProxy {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &FakeDNSProxy{
 		RealSocksAddr: realSocksAddr,
+		SocksUser:     socksUser,
+		SocksPass:     socksPass,
 		dnsMap:        dnsMap,
 		ctx:           ctx,
 		cancel:        cancel,
+	}
+}
+
+// dialRealSocks opens a TCP connection to the upstream SOCKS5 server and
+// completes the auth handshake. If [SocksUser] and [SocksPass] are both
+// set, the user/pass method (0x02) is offered; otherwise NO_AUTH (0x00).
+// Returns the negotiated upstream connection, or nil + an error.
+func (p *FakeDNSProxy) dialRealSocks() (net.Conn, error) {
+	realConn, err := net.Dial("tcp", p.RealSocksAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Greeting: offer NO_AUTH and (if configured) USERNAME/PASSWORD.
+	// RFC 1928 + RFC 1929.
+	var greeting []byte
+	if p.SocksUser != "" && p.SocksPass != "" {
+		greeting = []byte{5, 2, 0, 2} // VER=5, NMETHODS=2, NO_AUTH, USER/PASS
+	} else {
+		greeting = []byte{5, 1, 0} // VER=5, NMETHODS=1, NO_AUTH
+	}
+	if _, err := realConn.Write(greeting); err != nil {
+		realConn.Close()
+		return nil, err
+	}
+
+	resp := make([]byte, 2)
+	if _, err := io.ReadFull(realConn, resp); err != nil {
+		realConn.Close()
+		return nil, err
+	}
+	if resp[0] != 5 {
+		realConn.Close()
+		return nil, fmt.Errorf("upstream SOCKS5 version mismatch: %d", resp[0])
+	}
+
+	switch resp[1] {
+	case 0:
+		// NO_AUTH selected. Done.
+		return realConn, nil
+	case 2:
+		// USERNAME/PASSWORD selected — proceed with RFC 1929 sub-negotiation.
+		if p.SocksUser == "" || p.SocksPass == "" {
+			realConn.Close()
+			return nil, fmt.Errorf("upstream requires auth but no credentials configured")
+		}
+		user := []byte(p.SocksUser)
+		pass := []byte(p.SocksPass)
+		if len(user) > 255 || len(pass) > 255 {
+			realConn.Close()
+			return nil, fmt.Errorf("socks credentials too long")
+		}
+		req := []byte{1, byte(len(user))}
+		req = append(req, user...)
+		req = append(req, byte(len(pass)))
+		req = append(req, pass...)
+		if _, err := realConn.Write(req); err != nil {
+			realConn.Close()
+			return nil, err
+		}
+		authResp := make([]byte, 2)
+		if _, err := io.ReadFull(realConn, authResp); err != nil {
+			realConn.Close()
+			return nil, err
+		}
+		if authResp[1] != 0 {
+			realConn.Close()
+			return nil, fmt.Errorf("socks auth rejected (status %d)", authResp[1])
+		}
+		return realConn, nil
+	default:
+		realConn.Close()
+		return nil, fmt.Errorf("upstream selected unsupported auth method %d", resp[1])
 	}
 }
 
@@ -139,21 +217,13 @@ func (p *FakeDNSProxy) handleConnection(conn net.Conn) {
 		return
 	}
 
-	// Dial Real SOCKS
-	realConn, err := net.Dial("tcp", p.RealSocksAddr)
+	// Dial Real SOCKS (with auth if configured)
+	realConn, err := p.dialRealSocks()
 	if err != nil {
-		conn.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
+		_, _ = conn.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
 		return
 	}
 	defer realConn.Close()
-
-	if _, err := realConn.Write([]byte{5, 1, 0}); err != nil {
-		return
-	}
-	authResp := make([]byte, 2)
-	if _, err := io.ReadFull(realConn, authResp); err != nil {
-		return
-	}
 
 	req := []byte{5, 1, 0, atyp}
 	req = append(req, targetAddr...)
@@ -195,20 +265,12 @@ func (p *FakeDNSProxy) handleConnection(conn net.Conn) {
 }
 
 func (p *FakeDNSProxy) handleUDPAssociate(tcpConn net.Conn, atyp byte, targetAddr []byte, targetPort []byte) {
-	realConn, err := net.Dial("tcp", p.RealSocksAddr)
+	realConn, err := p.dialRealSocks()
 	if err != nil {
-		tcpConn.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
+		_, _ = tcpConn.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
 		return
 	}
 	defer realConn.Close()
-
-	if _, err := realConn.Write([]byte{5, 1, 0}); err != nil {
-		return
-	}
-	authResp := make([]byte, 2)
-	if _, err := io.ReadFull(realConn, authResp); err != nil {
-		return
-	}
 
 	req := []byte{5, 3, 0, atyp}
 	req = append(req, targetAddr...)

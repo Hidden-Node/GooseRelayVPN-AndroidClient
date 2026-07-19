@@ -303,12 +303,12 @@ func StopTun() {
 // TUN Bridge wrapper functions (calls mobile/tun subpackage)
 
 // StartTunBridge starts the TUN bridge with DNS interception using FakeDNS proxy.
-func StartTunBridge(tunFd int64, mtu int64, socksAddr string) error {
-	proxyAddr, err := tun.StartFakeDNSProxy(socksAddr)
+func StartTunBridge(tunFd int64, mtu int64, socksAddr, socksUser, socksPass string) error {
+	proxyAddr, err := tun.StartFakeDNSProxy(socksAddr, socksUser, socksPass)
 	if err != nil {
 		return err
 	}
-	
+
 	safeFd := dupFd(int(tunFd))
 
 	key := &engine.Key{
@@ -325,7 +325,7 @@ func StartTunBridge(tunFd int64, mtu int64, socksAddr string) error {
 	engine.Start()
 	tunOwnedFd = int32(safeFd)
 	engineMu.Unlock()
-	
+
 	mu.Lock()
 	tunBridgeRunning = true
 	mu.Unlock()

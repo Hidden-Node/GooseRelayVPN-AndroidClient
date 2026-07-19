@@ -16,7 +16,7 @@ var (
 	sharedDnsMap *DNSMapper
 )
 
-func StartFakeDNSProxy(socksAddr string) (string, error) {
+func StartFakeDNSProxy(socksAddr, socksUser, socksPass string) (string, error) {
 	bridgeMu.Lock()
 	defer bridgeMu.Unlock()
 	
@@ -28,10 +28,10 @@ func StartFakeDNSProxy(socksAddr string) (string, error) {
 		return "", fmt.Errorf("socksAddr cannot be empty")
 	}
 	
-	log.Printf("[TUN-API] Starting FakeDNS SOCKS5 proxy pointing to %s", socksAddr)
+	log.Printf("[TUN-API] Starting FakeDNS SOCKS5 proxy pointing to %s (auth=%v)", socksAddr, socksUser != "")
 	
 	sharedDnsMap = NewDNSMapper()
-	proxy := NewFakeDNSProxy(socksAddr, sharedDnsMap)
+	proxy := NewFakeDNSProxy(socksAddr, socksUser, socksPass, sharedDnsMap)
 	
 	addr, err := proxy.Start()
 	if err != nil {
