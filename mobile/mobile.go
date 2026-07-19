@@ -31,6 +31,11 @@ var (
 	tunBridgeRunning bool
 	clientDone       chan struct{}
 	engineMu         sync.Mutex // Protects tun2socks engine Start/Stop
+
+	// tunOwnedFd is the most recently dup'd TUN fd inserted into the
+	// tun2socks engine. It is -1 when no fd is owned. Guarded by engineMu
+	// (so it is always accessed together with engine.Start/Stop).
+	tunOwnedFd int32 = -1
 )
 
 var (
@@ -256,10 +261,17 @@ func StartTun(fd int64, proxyAddr string) {
 		Device: fmt.Sprintf("fd://%d", safeFd),
 		MTU:    1500,
 	}
-	
+
 	engineMu.Lock()
+	// If a previous fd is still tracked, close it now. This guards
+	// against the (unlikely) case where StartTun is called twice without
+	// an intervening StopTun.
+	if tunOwnedFd >= 0 {
+		_ = syscall.Close(int(tunOwnedFd))
+	}
 	engine.Insert(key)
 	engine.Start()
+	tunOwnedFd = int32(safeFd)
 	engineMu.Unlock()
 
 	mu.Lock()
@@ -282,6 +294,10 @@ func StopTun() {
 		defer func() { recover() }()
 		engine.Stop()
 	}()
+	if tunOwnedFd >= 0 {
+		_ = syscall.Close(int(tunOwnedFd))
+		tunOwnedFd = -1
+	}
 }
 
 // TUN Bridge wrapper functions (calls mobile/tun subpackage)
@@ -302,8 +318,12 @@ func StartTunBridge(tunFd int64, mtu int64, socksAddr string) error {
 	}
 
 	engineMu.Lock()
+	if tunOwnedFd >= 0 {
+		_ = syscall.Close(int(tunOwnedFd))
+	}
 	engine.Insert(key)
 	engine.Start()
+	tunOwnedFd = int32(safeFd)
 	engineMu.Unlock()
 	
 	mu.Lock()
@@ -328,6 +348,10 @@ func StopTunBridge() {
 		defer func() { recover() }()
 		engine.Stop()
 	}()
+	if tunOwnedFd >= 0 {
+		_ = syscall.Close(int(tunOwnedFd))
+		tunOwnedFd = -1
+	}
 	engineMu.Unlock()
 	
 	tun.StopFakeDNSProxy()
