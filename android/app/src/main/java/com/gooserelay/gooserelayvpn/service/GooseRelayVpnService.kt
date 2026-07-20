@@ -796,7 +796,7 @@ class GooseRelayVpnService : VpnService() {
                     val client = server.accept()
                     if (!isActive) { runCatching { client.close() }; break }
                     launch(Dispatchers.IO) {
-                        handleHttpProxyClient(client, socksPort, username, password)
+                        handleHttpProxyClient(client, coreSocksPort, username, password)
                     }
                 }
             } catch (e: Exception) {
