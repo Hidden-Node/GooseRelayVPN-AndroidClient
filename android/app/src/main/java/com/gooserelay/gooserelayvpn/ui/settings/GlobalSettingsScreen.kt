@@ -140,9 +140,16 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 text = { Text("Export to Clipboard") },
                                 onClick = {
                                     menuExpanded = false
-                                    val json = gson.toJson(draft)
+                                    // ponytail: never export credentials. AGENTS.md forbids
+                                    // leaking socksUser/socksPass/tunnelKey/scriptKeysText; the
+                                    // sharing creds are in the same class — strip before serialize.
+                                    val redacted = draft.copy(
+                                        internetSharingUser = "",
+                                        internetSharingPass = ""
+                                    )
+                                    val json = gson.toJson(redacted)
                                     clipboardManager.setText(AnnotatedString(json))
-                                    scope.launch { snackbarHostState.showSnackbar("Settings copied to clipboard") }
+                                    scope.launch { snackbarHostState.showSnackbar("Settings copied (credentials excluded)") }
                                 }
                             )
                             DropdownMenuItem(
@@ -396,10 +403,22 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 )
                             }
 
+                            val userBlank = draft.internetSharingUser.isBlank()
+                            val passBlank = draft.internetSharingPass.isBlank()
+                            val mismatch = userBlank xor passBlank
+
                             OutlinedTextField(
                                 value = draft.internetSharingUser,
                                 onValueChange = { draft = draft.copy(internetSharingUser = it) },
                                 label = { Text(stringResource(R.string.global_username)) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                                isError = mismatch && userBlank,
+                                supportingText = {
+                                    if (mismatch && userBlank) {
+                                        Text(stringResource(R.string.global_username_missing), color = MaterialTheme.colorScheme.error)
+                                    }
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             )
 
@@ -408,14 +427,30 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 onValueChange = { draft = draft.copy(internetSharingPass = it) },
                                 label = { Text(stringResource(R.string.global_password)) },
                                 visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                isError = mismatch && passBlank,
+                                supportingText = {
+                                    if (mismatch && passBlank) {
+                                        Text(stringResource(R.string.global_password_missing), color = MaterialTheme.colorScheme.error)
+                                    }
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             )
 
-                            Text(
-                                stringResource(R.string.global_sharing_help),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MdvColor.OnSurfaceVariant
-                            )
+                            if (mismatch) {
+                                Text(
+                                    stringResource(R.string.global_auth_mismatch),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            } else {
+                                Text(
+                                    stringResource(R.string.global_sharing_help),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MdvColor.OnSurfaceVariant
+                                )
+                            }
                         }
                             }
                         }
@@ -684,8 +719,12 @@ private fun parseCsv(value: String): Set<String> {
 }
 
 private fun normalize(settings: GlobalSettings): GlobalSettings {
+    fun clampPort(p: Int, default: Int): Int =
+        if (p in 1025..65535) p else default
     return settings.copy(
         connectionMode = settings.connectionMode.uppercase(),
+        internetSharingSocksPort = clampPort(settings.internetSharingSocksPort, 8090),
+        internetSharingHttpPort = clampPort(settings.internetSharingHttpPort, 8091),
         splitPackagesCsv = settings.splitPackagesCsv
             .split(",")
             .map { it.trim() }
