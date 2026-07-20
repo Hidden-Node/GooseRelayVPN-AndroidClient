@@ -239,7 +239,15 @@ func StopClient() {
 	if done != nil {
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-time.After(1 * time.Second):
+			// The carrier shutdown took longer than 1s. The outer
+			// Android caller (GooseRelayVpnService.stopVpn) caps total
+			// disconnect with a 5s outer join, so we return promptly
+			// here and let the outer caller decide whether to log a
+			// "stop timed out" message. StopTun/StopTunBridge below are
+			// idempotent and safe to call even if the carrier is still
+			// winding down.
+			log.Printf("[client] carrier shutdown exceeded 1s, proceeding with TUN teardown")
 		}
 	}
 
