@@ -309,20 +309,30 @@ Output: `app/build/outputs/bundle/release/app-release.aab`
 ### GitHub Workflows
 
 **`.github/workflows/android-ci.yml`**
-- Runs on every commit
-- Builds debug APK
-- Runs unit tests
-- Checks code quality
-
-**`.github/workflows/release.yml`**
-- Triggered on version tag (v*.*.*)
-- Builds signed release APK/AAB
-- Creates GitHub Release with artifacts
-- Requires signing secrets
+- Runs on every push to `main`/`master` and on every pull request
+- Builds the Go mobile AAR (`bash ./android/build_go_mobile.sh`)
+- Builds the debug APK (`./gradlew :app:assembleDebug`)
+- Runs unit tests (`./gradlew :app:testDebugUnitTest`) — added in
+  the test-baseline work; if your branch is older, this step may not
+  be present yet
+- Uploads the APK and AAR as workflow artifacts for download from the
+  Actions tab
 
 **`.github/workflows/release-manual.yml`**
-- Manual trigger for releases
-- Same as release.yml but on-demand
+- Manually triggered (`workflow_dispatch`) with a required
+  `tag_name` input (e.g. `v1.2.3`) and optional `release_name` /
+  `make_latest` inputs
+- Builds a signed, split-by-ABI release APK set plus a universal APK
+  and a Go AAR; requires the `ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
+  `ANDROID_KEY_PASSWORD` repo secrets
+- Creates a GitHub Release with `softprops/action-gh-release@v2`
+  and uploads the AAR and all APKs as release assets
+
+> There is **no** `release.yml` workflow. Tag-triggered releases are
+> performed by manually dispatching `release-manual.yml` with the
+> desired tag. If you need a tag-triggered workflow, add one as a
+> sibling to `release-manual.yml` and update this section.
 
 ### Secrets Required
 
