@@ -84,9 +84,39 @@ object ProfileMigrations {
         }
     }
 
-    /**
-     * All registered migrations. Add new `SafetyExportMigration(...)`
-     * entries here as the schema evolves. Empty until v3→v4 is needed.
-     */
-    val ALL: Array<Migration> = arrayOf()
+    private fun existingColumns(db: SupportSQLiteDatabase): Set<String> {
+        val columns = mutableSetOf<String>()
+        db.query("PRAGMA table_info(profiles)").use { c ->
+            val nameIdx = c.getColumnIndex("name")
+            while (c.moveToNext()) columns.add(c.getString(nameIdx))
+        }
+        return columns
+    }
+
+    internal fun migrationSql2To3(existing: Set<String>): List<String> =
+        listOf(
+            "socksUser" to "ALTER TABLE profiles ADD COLUMN socksUser TEXT NOT NULL DEFAULT ''",
+            "socksPass" to "ALTER TABLE profiles ADD COLUMN socksPass TEXT NOT NULL DEFAULT ''"
+        ).filterNot { it.first in existing }.map { it.second }
+
+    internal fun migrationSql3To4(existing: Set<String>): List<String> =
+        listOf(
+            "coalesceStepMs" to "ALTER TABLE profiles ADD COLUMN coalesceStepMs INTEGER NOT NULL DEFAULT 0",
+            "idleSlotsPerBucket" to "ALTER TABLE profiles ADD COLUMN idleSlotsPerBucket INTEGER NOT NULL DEFAULT 2",
+            "remoteUrl" to "ALTER TABLE profiles ADD COLUMN remoteUrl TEXT"
+        ).filterNot { it.first in existing }.map { it.second }
+
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            migrationSql2To3(existingColumns(db)).forEach { db.execSQL(it) }
+        }
+    }
+
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            migrationSql3To4(existingColumns(db)).forEach { db.execSQL(it) }
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_2_3, MIGRATION_3_4)
 }
