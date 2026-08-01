@@ -167,6 +167,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("com.google.truth:truth:1.4.4")
     testImplementation("org.json:json:20240303")
+    testImplementation("org.xerial:sqlite-jdbc:3.45.1.0")
 
     // Instrumented tests (Room migration)
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
