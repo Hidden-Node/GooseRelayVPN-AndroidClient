@@ -1,37 +1,58 @@
 package com.gooserelay.gooserelayvpn.data.local
 
 import android.content.Context
+import android.database.Cursor
+import android.util.Base64
+import android.util.Log
 import androidx.room.migration.Migration
-import androidx.room.Room
-import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.google.gson.Gson
+import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import java.io.File
 
 /**
  * Central place for Room migrations. Each Migration(N, N+1) lives here.
  *
- * Convention: every migration that risks user data MUST be preceded by
- * an on-upgrade export of the current profile table to
- * `cacheDir/profiles_backup_<fromVersion>_to_<toVersion>_<timestamp>.json`
- * before the schema change. See [SafetyExportMigration].
+ * Convention: every migration that risks user data (table rebuilds, column
+ * drops, type changes) MUST be wrapped in [SafetyExportMigration] so a JSON
+ * snapshot of the current rows is written before the schema change:
+ *
+ * ```
+ * val MIGRATION_4_5 = SafetyExportMigration(context, 4, 5,
+ *     object : Migration(4, 5) {
+ *         override fun migrate(db: SupportSQLiteDatabase) { ... }
+ *     })
+ * ```
+ *
+ * The migrations registered in [ALL] are additive-only (ALTER TABLE ADD
+ * COLUMN), which cannot lose rows, so they are deliberately not wrapped.
  */
 object ProfileMigrations {
+
+    private const val TAG = "ProfileMigrations"
+    private const val BACKUP_PREFIX = "profiles_backup_"
+    private const val MAX_KEPT_BACKUPS = 2
 
     private val gson = Gson()
 
     /**
-     * Run before [delegate] applies its schema change. Reads every profile
-     * from the v`from` schema and writes a JSON snapshot to the app's cache
-     * directory. If the export fails, the migration is NOT applied and an
-     * [IllegalStateException] is thrown so the user sees a crash instead
-     * of silent data loss.
+     * Wraps [delegate] so a snapshot of `profiles` is exported before its
+     * schema change runs.
+     *
+     * The snapshot goes to `noBackupFilesDir` — app-private and excluded from
+     * platform auto-backup — because `cacheDir` can be cleared by the OS at
+     * any moment, exactly when a backup would be needed. It contains
+     * credentials (`socksPass`, `tunnelKey`, `scriptKeysText`) as plain text;
+     * this is intentional. Only the newest [MAX_KEPT_BACKUPS] files are kept.
+     *
+     * If the export throws, Room aborts the migration instead of silently
+     * destroying data.
      */
     class SafetyExportMigration(
         private val context: Context,
-        private val from: Int,
-        private val to: Int,
+        from: Int,
+        to: Int,
         private val delegate: Migration
     ) : Migration(from, to) {
 
@@ -40,49 +61,72 @@ object ProfileMigrations {
             delegate.migrate(db)
         }
 
+        private fun pruneOldBackups(dir: File) {
+            runCatching {
+                dir.listFiles { f -> f.name.startsWith(BACKUP_PREFIX) }
+                    ?.sortedByDescending(File::lastModified)
+                    ?.drop(MAX_KEPT_BACKUPS)
+                    ?.forEach { it.delete() }
+            }.onFailure {
+                Log.w(TAG, "Failed to prune old profile backups", it)
+            }
+        }
+
+        /**
+         * Dumps every row/column discovered at runtime via the cursor itself,
+         * so future schema versions never need to update a hardcoded list.
+         */
         private fun exportCurrentProfiles(db: SupportSQLiteDatabase) {
-            val cursor = db.query("SELECT * FROM profiles")
             val rows = mutableListOf<JsonObject>()
-            cursor.use { c ->
+            db.query("SELECT * FROM profiles").use { c ->
                 while (c.moveToNext()) {
                     val obj = JsonObject()
-                    // Column order matches ProfileEntity field order at v3.
-                    // Use column names defensively — older schema snapshots
-                    // may differ.
-                    fun col(name: String): String =
-                        c.getString(c.getColumnIndexOrThrow(name))
-                    obj.apply {
-                        addProperty("id", c.getLong(c.getColumnIndexOrThrow("id")))
-                        addProperty("name", col("name"))
-                        addProperty("debugTiming", c.getInt(c.getColumnIndexOrThrow("debugTiming")) != 0)
-                        addProperty("socksHost", col("socksHost"))
-                        addProperty("socksPort", c.getInt(c.getColumnIndexOrThrow("socksPort")))
-                        addProperty("socksUser", col("socksUser"))
-                        addProperty("socksPass", col("socksPass"))
-                        addProperty("googleHost", col("googleHost"))
-                        addProperty("sniJson", col("sniJson"))
-                        addProperty("scriptKeysText", col("scriptKeysText"))
-                        addProperty("tunnelKey", col("tunnelKey"))
-                        addProperty("coalesceStepMs", c.getInt(c.getColumnIndexOrThrow("coalesceStepMs")))
-                        addProperty("idleSlotsPerBucket", c.getInt(c.getColumnIndexOrThrow("idleSlotsPerBucket")))
-                        addProperty("remoteUrl", if (c.isNull(c.getColumnIndexOrThrow("remoteUrl"))) null else col("remoteUrl"))
-                        addProperty("isSelected", c.getInt(c.getColumnIndexOrThrow("isSelected")) != 0)
-                        addProperty("createdAt", c.getLong(c.getColumnIndexOrThrow("createdAt")))
+                    for (i in 0 until c.columnCount) {
+                        val name = c.getColumnName(i)
+                        when (c.getType(i)) {
+                            Cursor.FIELD_TYPE_NULL -> obj.add(name, JsonNull.INSTANCE)
+                            Cursor.FIELD_TYPE_INTEGER -> obj.addProperty(name, c.getLong(i))
+                            Cursor.FIELD_TYPE_FLOAT -> obj.addProperty(name, c.getDouble(i))
+                            Cursor.FIELD_TYPE_BLOB -> obj.addProperty(
+                                name,
+                                Base64.encodeToString(c.getBlob(i), Base64.NO_WRAP)
+                            )
+                            else -> obj.addProperty(name, c.getString(i))
+                        }
                     }
                     rows.add(obj)
                 }
             }
-            val snapshot = JsonObject().apply {
-                addProperty("schemaVersion", from)
-                add("profiles", gson.toJsonTree(rows))
+            // An empty table has nothing to preserve; skip the export so a
+            // disk-full device cannot turn a harmless upgrade into a
+            // permanent crash loop.
+            if (rows.isEmpty()) {
+                Log.i(
+                    TAG,
+                    "No profiles before v$startVersion->v$endVersion; skipping safety export"
+                )
+                return
             }
-            val backupFile = File(
-                context.cacheDir,
-                "profiles_backup_v${from}_to_v${to}_${System.currentTimeMillis()}.json"
-            )
-            backupFile.writeText(gson.toJson(snapshot))
+            val dir = context.noBackupFilesDir
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw IllegalStateException("Cannot create backup directory: $dir")
+            }
+            val file = File(dir, backupFileName(startVersion, endVersion))
+            file.writeText(gson.toJson(snapshotJson(startVersion, rows)))
+            Log.i(TAG, "Profile safety export written (${rows.size} rows): ${file.name}")
+            pruneOldBackups(dir)
         }
     }
+
+    private fun backupFileName(from: Int, to: Int): String =
+        "${BACKUP_PREFIX}v${from}_to_v${to}_${System.currentTimeMillis()}.json"
+
+    private fun snapshotJson(schemaVersion: Int, rows: List<JsonObject>): JsonObject =
+        JsonObject().apply {
+            addProperty("schemaVersion", schemaVersion)
+            addProperty("exportedAt", System.currentTimeMillis())
+            add("profiles", gson.toJsonTree(rows))
+        }
 
     private fun existingColumns(db: SupportSQLiteDatabase): Set<String> {
         val columns = mutableSetOf<String>()
@@ -118,5 +162,8 @@ object ProfileMigrations {
         }
     }
 
+    // DB v1 never shipped publicly (the schema was born at v2), so there is
+    // intentionally no MIGRATION_1_2; the lowest supported upgrade path is
+    // 2->3. Only add one if an actual v1 install ever surfaces in the wild.
     val ALL: Array<Migration> = arrayOf(MIGRATION_2_3, MIGRATION_3_4)
 }

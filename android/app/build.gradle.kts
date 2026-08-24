@@ -103,6 +103,11 @@ android {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
 
+    sourceSets {
+        // MigrationTestHelper loads Room schema JSONs from androidTest assets.
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+
     splits {
         abi {
             // Generate split APKs plus a universal APK.
@@ -148,6 +153,8 @@ dependencies {
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Room DB
+    // NOTE: do not bump past 2.6.x while minSdk stays 21 — Room 2.7+ (the
+    // KMP line) requires minSdk 23. Raise minSdk first if you ever upgrade.
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
@@ -173,4 +180,5 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.room:room-testing:2.6.1")
+    androidTestImplementation("com.google.truth:truth:1.4.4")
 }

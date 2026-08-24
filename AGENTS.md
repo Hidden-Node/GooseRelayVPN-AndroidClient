@@ -48,8 +48,8 @@ This client: <https://github.com/ArashAfkandeh/GooseRelayVPN-AndroidClient>
   - `ui/` — Compose screens and ViewModels, split by feature
     (`home/`, `profiles/`, `settings/`, `logs/`, `info/`,
     `navigation/`).
-  - `data/local/` — Room (`AppDatabase` v3, `ProfileEntity`,
-    `ProfileDao`).
+  - `data/local/` — Room (`AppDatabase` v4, `ProfileEntity`,
+    `ProfileDao`, `ProfileMigrations`).
   - `data/repository/` — `ProfileRepository` (Hilt `@Singleton`).
   - `dns/` — Kotlin FakeDNS interceptor (separate from the Go-side
     FakeDNS in `mobile/tun/`).

@@ -40,6 +40,10 @@ jobs:
         working-directory: android
         run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --stacktrace
 
+      - name: Compile instrumented tests
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew :app:assembleDebugAndroidTest --stacktrace
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
