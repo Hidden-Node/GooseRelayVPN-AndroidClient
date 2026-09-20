@@ -954,9 +954,11 @@ class GooseRelayVpnService : VpnService() {
             val url = parts[1]
 
             var authHeader: String? = null
+            val headerLines = ArrayList<String>()
             while (true) {
                 val line = readLineUnbuffered(input) ?: break
                 if (line.isBlank()) break
+                headerLines.add(line)
                 val idx = line.indexOf(':')
                 if (idx <= 0) continue
                 val name = line.substring(0, idx).trim()
@@ -977,22 +979,63 @@ class GooseRelayVpnService : VpnService() {
                 return
             }
 
-            if (method == "CONNECT") {
-                val hostPort = url.split(":")
-                val host = hostPort[0]
-                val port = hostPort.getOrElse(1) { "80" }.toIntOrNull() ?: 80
-
+            if (method.equals("CONNECT", ignoreCase = true)) {
+                val target = parseProxyTarget("CONNECT", url)
+                if (target == null) {
+                    output.write("HTTP/1.1 400 Bad Request\r\n\r\n"); output.flush()
+                    return
+                }
+                val upstream = try {
+                    createSocks5Tunnel(upstreamSocksPort, target.host, target.port)
+                } catch (e: Exception) {
+                    VpnManager.appendLog("Sharing HTTP CONNECT to ${target.host}:${target.port} failed: ${e.message}")
+                    output.write("HTTP/1.1 502 Bad Gateway\r\n\r\n"); output.flush()
+                    return
+                }
+                upstream.soTimeout = 30000
+                client.soTimeout = 0
                 output.write("HTTP/1.1 200 Connection Established\r\n\r\n")
                 output.flush()
-
-                val upstream = createSocks5Tunnel(upstreamSocksPort, host, port)
-
-                client.soTimeout = 0
-                upstream.soTimeout = 30000
                 bridgeBidirectional(client, upstream)
             } else {
-                output.write("HTTP/1.1 405 Method Not Allowed\r\n\r\n")
-                output.flush()
+                val target = parseProxyTarget(method, url)
+                if (target == null) {
+                    output.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"); output.flush()
+                    return
+                }
+                val upstream = try {
+                    createSocks5Tunnel(upstreamSocksPort, target.host, target.port)
+                } catch (e: Exception) {
+                    VpnManager.appendLog("Sharing HTTP $method to ${target.host}:${target.port} failed: ${e.message}")
+                    output.write("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n"); output.flush()
+                    return
+                }
+                upstream.soTimeout = 30000
+                client.soTimeout = 0
+                // Re-emit the request with a relative path (origin-form) to
+                // the tunnel, then bridge; the tunnel's SOCKS5 target is
+                // already resolved by createSocks5Tunnel.
+                val forwardedHeaders = headerLines
+                    .filter { line ->
+                        val idx = line.indexOf(':')
+                        if (idx <= 0) return@filter true
+                        val name = line.substring(0, idx).trim()
+                        !name.equals("Host", ignoreCase = true) &&
+                            !name.equals("Proxy-Authorization", ignoreCase = true)
+                    }
+                    .joinToString("") { "$it\r\n" }
+                val rewritten = buildString {
+                    append(method).append(' ').append(target.path).append(" HTTP/1.1\r\n")
+                    append("Host: ").append(target.host)
+                    if (target.port != 80) append(':').append(target.port)
+                    append("\r\n")
+                    append(forwardedHeaders)
+                    append("\r\n")
+                }
+                val upstreamOut = upstream.getOutputStream()
+                upstreamOut.write(rewritten.toByteArray(Charsets.ISO_8859_1))
+                upstreamOut.flush()
+                bridgeBidirectional(client, upstream)
             }
 } catch (_: Exception) {}
         runCatching { client.close() }
