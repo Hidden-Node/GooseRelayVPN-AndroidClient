@@ -100,14 +100,15 @@ class ProfileSelectionTransactionTest {
     @Test
     fun `stale selected flag on a non-selected profile does not steal selection`() = runTest {
         val dao = FakeProfileDao()
-        val a = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "a"))
+        val a = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "a", createdAt = 1))
         val b = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "b", createdAt = 2))
-        dao.setSelectedProfile(b)
-        // Caller holds a copy of a claiming isSelected = true, but the DB has b selected.
-        val stale = dao.rows.getValue(a).copy(isSelected = true)
+        val c = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "c", createdAt = 3))
+        dao.setSelectedProfile(a)
+        // Caller holds a copy of c claiming isSelected = true, but the DB has a selected.
+        val stale = dao.rows.getValue(c).copy(isSelected = true)
         dao.deleteProfileAndReselect(stale)
-        assertThat(dao.rows.getValue(b).isSelected).isTrue()
-        assertThat(dao.rows).doesNotContainKey(a)
+        assertThat(dao.rows.getValue(a).isSelected).isTrue()
+        assertThat(dao.rows).doesNotContainKey(c)
     }
 
     @Test
