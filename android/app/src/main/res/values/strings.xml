@@ -121,6 +121,7 @@
     <string name="global_socks5_port">SOCKS5 Port</string>
     <string name="global_socks5_port_required">SOCKS5 port is required.</string>
     <string name="global_port_root_warning">Port must be greater than 1024 (ports &lt;=1024 require root).</string>
+    <string name="global_sharing_ports_equal">SOCKS and HTTP ports must be different</string>
     <string name="global_http_port">HTTP Port</string>
     <string name="global_http_port_required">HTTP port is required.</string>
     <string name="global_username">Username</string>

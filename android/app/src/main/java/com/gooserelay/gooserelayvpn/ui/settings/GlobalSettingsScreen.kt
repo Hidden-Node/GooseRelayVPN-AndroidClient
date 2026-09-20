@@ -108,6 +108,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
     val httpPortMissing = sharingHttpPortText.isBlank()
     val socksPortRequiresRoot = socksPortValue != null && socksPortValue in 1..1024
     val httpPortRequiresRoot = httpPortValue != null && httpPortValue in 1..1024
+    val sharingPortsEqual = sharingPortCollision(socksPortValue, httpPortValue, draft.internetSharingEnabled)
     val splitPackagesCount by remember(draft.splitPackagesCsv) {
         derivedStateOf { parseCsv(draft.splitPackagesCsv).size }
     }
@@ -368,11 +369,12 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                         }
                                     },
                                     label = { Text(stringResource(R.string.global_socks5_port)) },
-                                    isError = socksPortMissing || socksPortRequiresRoot,
+                                    isError = socksPortMissing || socksPortRequiresRoot || sharingPortsEqual,
                                     supportingText = {
                                         when {
                                             socksPortMissing -> Text(stringResource(R.string.global_socks5_port_required))
                                             socksPortRequiresRoot -> Text(stringResource(R.string.global_port_root_warning))
+                                            sharingPortsEqual -> Text(stringResource(R.string.global_sharing_ports_equal), color = MaterialTheme.colorScheme.error)
                                         }
                                     },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -391,11 +393,12 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                         }
                                     },
                                     label = { Text(stringResource(R.string.global_http_port)) },
-                                    isError = httpPortMissing || httpPortRequiresRoot,
+                                    isError = httpPortMissing || httpPortRequiresRoot || sharingPortsEqual,
                                     supportingText = {
                                         when {
                                             httpPortMissing -> Text(stringResource(R.string.global_http_port_required))
                                             httpPortRequiresRoot -> Text(stringResource(R.string.global_port_root_warning))
+                                            sharingPortsEqual -> Text(stringResource(R.string.global_sharing_ports_equal), color = MaterialTheme.colorScheme.error)
                                         }
                                     },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -717,6 +720,9 @@ private fun parseCsv(value: String): Set<String> {
         .filter { it.isNotBlank() }
         .toSet()
 }
+
+internal fun sharingPortCollision(socks: Int?, http: Int?, sharingEnabled: Boolean): Boolean =
+    socks != null && http != null && socks == http && sharingEnabled
 
 private fun normalize(settings: GlobalSettings): GlobalSettings {
     fun clampPort(p: Int, default: Int): Int =
