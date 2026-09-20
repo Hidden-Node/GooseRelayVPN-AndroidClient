@@ -26,6 +26,7 @@ class ProfilesViewModelParseTest {
         override suspend fun deleteProfile(profile: ProfileEntity) {}
         override suspend fun deselectAll() {}
         override suspend fun selectProfile(id: Long) {}
+        override suspend fun countProfiles(): Int = 0
         override suspend fun setSelectedProfile(id: Long) {}
     }
 

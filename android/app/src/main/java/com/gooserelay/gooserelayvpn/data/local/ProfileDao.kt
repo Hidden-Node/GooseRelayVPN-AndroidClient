@@ -41,9 +41,43 @@ interface ProfileDao {
     @Query("UPDATE profiles SET isSelected = 1 WHERE id = :id")
     suspend fun selectProfile(id: Long)
 
+    @Query("SELECT COUNT(*) FROM profiles")
+    suspend fun countProfiles(): Int
+
     @Transaction
     suspend fun setSelectedProfile(id: Long) {
         deselectAll()
         selectProfile(id)
+    }
+
+    /**
+     * Inserts the profile and auto-selects it only when it is the first one in
+     * the table. Decision is made from DB state inside one transaction, never
+     * from ViewModel state.
+     */
+    @Transaction
+    suspend fun insertProfileAndSelectIfFirst(profile: ProfileEntity): Long {
+        val id = insertProfile(profile)
+        if (countProfiles() == 1) {
+            selectProfile(id)
+        }
+        return id
+    }
+
+    /**
+     * Deletes the profile and, if it was the selected one, atomically re-selects
+     * the newest remaining profile. Never leaves the table with zero selected
+     * rows (when at least one row remains).
+     */
+    @Transaction
+    suspend fun deleteProfileAndReselect(profile: ProfileEntity) {
+        val wasSelected = profile.isSelected
+        deleteProfile(profile)
+        if (wasSelected) {
+            getNewestProfile()?.let { remaining ->
+                deselectAll()
+                selectProfile(remaining.id)
+            }
+        }
     }
 }

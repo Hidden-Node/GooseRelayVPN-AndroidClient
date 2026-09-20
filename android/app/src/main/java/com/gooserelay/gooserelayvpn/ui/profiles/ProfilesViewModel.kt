@@ -40,11 +40,7 @@ class ProfilesViewModel @Inject constructor(
 
     fun addProfile(profile: ProfileEntity) {
         viewModelScope.launch {
-            val id = profileRepository.insertProfile(profile)
-            // Auto-select the first profile
-            if (profiles.value.isEmpty()) {
-                profileRepository.setSelectedProfile(id)
-            }
+            profileRepository.insertProfileAndSelectIfFirst(profile)
         }
     }
 
