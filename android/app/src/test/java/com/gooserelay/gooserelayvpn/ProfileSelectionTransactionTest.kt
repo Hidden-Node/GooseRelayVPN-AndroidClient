@@ -10,7 +10,6 @@ import org.junit.Test
 private class FakeProfileDao : ProfileDao {
     val rows = LinkedHashMap<Long, ProfileEntity>()
     private var nextId = 1L
-    var deselectCalls = 0
 
     override fun getAllProfiles() = throw UnsupportedOperationException()
     override suspend fun getProfileById(id: Long) = rows[id]
@@ -27,7 +26,6 @@ private class FakeProfileDao : ProfileDao {
     override suspend fun updateProfile(profile: ProfileEntity) { rows[profile.id] = profile }
     override suspend fun deleteProfile(profile: ProfileEntity) { rows.remove(profile.id) }
     override suspend fun deselectAll() {
-        deselectCalls++
         rows.replaceAll { _, p -> p.copy(isSelected = false) }
     }
     override suspend fun selectProfile(id: Long) {
@@ -84,5 +82,41 @@ class ProfileSelectionTransactionTest {
         val a = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "a"))
         dao.deleteProfileAndReselect(dao.rows.getValue(a))
         assertThat(dao.rows).isEmpty()
+    }
+
+    @Test
+    fun `deleting with a stale unselected entity still re-selects the newest remaining`() = runTest {
+        val dao = FakeProfileDao()
+        val a = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "a"))
+        val b = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "b", createdAt = 2))
+        dao.setSelectedProfile(a)
+        // Caller holds a pre-select copy: entity says isSelected = false,
+        // but the DB has a selected.
+        val stale = dao.rows.getValue(a).copy(isSelected = false)
+        dao.deleteProfileAndReselect(stale)
+        assertThat(dao.rows.getValue(b).isSelected).isTrue()
+    }
+
+    @Test
+    fun `stale selected flag on a non-selected profile does not steal selection`() = runTest {
+        val dao = FakeProfileDao()
+        val a = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "a"))
+        val b = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "b", createdAt = 2))
+        dao.setSelectedProfile(b)
+        // Caller holds a copy of a claiming isSelected = true, but the DB has b selected.
+        val stale = dao.rows.getValue(a).copy(isSelected = true)
+        dao.deleteProfileAndReselect(stale)
+        assertThat(dao.rows.getValue(b).isSelected).isTrue()
+        assertThat(dao.rows).doesNotContainKey(a)
+    }
+
+    @Test
+    fun `inserting a non-first profile with isSelected true does not get selected`() = runTest {
+        val dao = FakeProfileDao()
+        val first = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "a"))
+        dao.setSelectedProfile(first)
+        val second = dao.insertProfileAndSelectIfFirst(ProfileEntity(name = "b", isSelected = true))
+        assertThat(dao.rows.getValue(second).isSelected).isFalse()
+        assertThat(dao.rows.getValue(first).isSelected).isTrue()
     }
 }

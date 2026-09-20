@@ -57,7 +57,7 @@ interface ProfileDao {
      */
     @Transaction
     suspend fun insertProfileAndSelectIfFirst(profile: ProfileEntity): Long {
-        val id = insertProfile(profile)
+        val id = insertProfile(profile.copy(isSelected = false))
         if (countProfiles() == 1) {
             selectProfile(id)
         }
@@ -71,9 +71,9 @@ interface ProfileDao {
      */
     @Transaction
     suspend fun deleteProfileAndReselect(profile: ProfileEntity) {
-        val wasSelected = profile.isSelected
+        val selectedId = getSelectedProfile()?.id
         deleteProfile(profile)
-        if (wasSelected) {
+        if (selectedId != null && selectedId == profile.id) {
             getNewestProfile()?.let { remaining ->
                 deselectAll()
                 selectProfile(remaining.id)
