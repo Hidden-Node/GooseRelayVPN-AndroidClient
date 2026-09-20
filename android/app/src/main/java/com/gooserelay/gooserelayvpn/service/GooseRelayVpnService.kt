@@ -19,6 +19,7 @@ import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.GlobalSettingsStore
 import com.gooserelay.gooserelayvpn.util.VpnManager
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.io.RandomAccessFile
 import java.net.InetAddress
@@ -65,6 +66,8 @@ class GooseRelayVpnService : VpnService() {
     private var sharingSocksJob: Job? = null
     private var sharingSocksServer: java.net.ServerSocket? = null
     private var sharingHttpServer: java.net.ServerSocket? = null
+    private val sharingConnections = java.util.Collections.synchronizedSet(mutableSetOf<java.net.Socket>())
+    private val sharingStartStopMutex = kotlinx.coroutines.sync.Mutex()
     private var logTailJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -475,11 +478,8 @@ class GooseRelayVpnService : VpnService() {
                     networkCallback = null
                 }
 
-                // Close sharing servers
-                runCatching { sharingSocksServer?.close() }
-                sharingSocksServer = null
-                runCatching { sharingHttpServer?.close() }
-                sharingHttpServer = null
+                // Close sharing servers (also closes tracked client sockets)
+                stopSharingServers()
 
                 VpnManager.updateState(VpnManager.VpnState.DISCONNECTED)
                 VpnManager.stopTrafficMonitor()
@@ -741,68 +741,80 @@ class GooseRelayVpnService : VpnService() {
         username: String,
         password: String
     ) {
-        stopSharingServers()
+        sharingStartStopMutex.withLock {
+            stopSharingServers()
 
-        // ponytail: both-or-neither — half-blank creds are rejected instead of falling back to
-        // an open or locked proxy. UI flags this too; this is the trust-boundary enforcement.
-        val userBlank = username.isBlank()
-        val passBlank = password.isBlank()
-        if (userBlank != passBlank) {
-            throw IllegalStateException(
-                "Internet Sharing requires both username and password, or neither. Set both in Settings."
-            )
-        }
-        val authEnabled = !userBlank && !passBlank
-        ensureSharingPortFree(socksPort, coreSocksPort)
-        ensureSharingPortFree(httpPort, coreSocksPort)
-
-        sharingSocksJob = serviceScope.launch {
-            try {
-                val server = java.net.ServerSocket().apply {
-                    reuseAddress = true
-                    bind(InetSocketAddress(InetAddress.getByName("0.0.0.0"), socksPort), 50)
-                }
-                sharingSocksServer = server
-                VpnManager.appendLog(
-                    "Sharing SOCKS5 proxy ready on 0.0.0.0:$socksPort" +
-                        if (authEnabled) " (auth enabled)" else " (open, no auth)"
+            // ponytail: both-or-neither — half-blank creds are rejected instead of falling back to
+            // an open or locked proxy. UI flags this too; this is the trust-boundary enforcement.
+            val userBlank = username.isBlank()
+            val passBlank = password.isBlank()
+            if (userBlank != passBlank) {
+                throw IllegalStateException(
+                    "Internet Sharing requires both username and password, or neither. Set both in Settings."
                 )
-                while (isActive) {
-                    val client = server.accept()
-                    if (!isActive) { runCatching { client.close() }; break }
-                    launch(Dispatchers.IO) {
-                        handleSharingSocksClient(client, coreSocksPort, username, password)
-                    }
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e(TAG, "Sharing SOCKS5 proxy error", e)
-                VpnManager.appendLog("Sharing SOCKS5 proxy error: ${e.message}")
             }
-        }
+            val authEnabled = !userBlank && !passBlank
+            ensureSharingPortFree(socksPort, coreSocksPort)
+            ensureSharingPortFree(httpPort, coreSocksPort)
 
-        sharingHttpJob = serviceScope.launch {
-            try {
-                val server = java.net.ServerSocket().apply {
-                    reuseAddress = true
-                    bind(InetSocketAddress(InetAddress.getByName("0.0.0.0"), httpPort), 50)
-                }
-                sharingHttpServer = server
-                VpnManager.appendLog(
-                    "HTTP proxy ready on 0.0.0.0:$httpPort" +
-                        if (authEnabled) " (auth enabled)" else " (open, no auth)"
-                )
-                while (isActive) {
-                    val client = server.accept()
-                    if (!isActive) { runCatching { client.close() }; break }
-                    launch(Dispatchers.IO) {
-                        handleHttpProxyClient(client, coreSocksPort, username, password)
+            sharingSocksJob = serviceScope.launch {
+                try {
+                    val server = java.net.ServerSocket().apply {
+                        reuseAddress = true
+                        bind(InetSocketAddress(InetAddress.getByName("0.0.0.0"), socksPort), 50)
                     }
+                    sharingSocksServer = server
+                    VpnManager.appendLog(
+                        "Sharing SOCKS5 proxy ready on 0.0.0.0:$socksPort" +
+                            if (authEnabled) " (auth enabled)" else " (open, no auth)"
+                    )
+                    while (isActive) {
+                        val client = server.accept()
+                        if (!isActive) { runCatching { client.close() }; break }
+                        launch(Dispatchers.IO) {
+                            sharingConnections.add(client)
+                            try {
+                                handleSharingSocksClient(client, coreSocksPort, username, password)
+                            } finally {
+                                sharingConnections.remove(client)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    Log.e(TAG, "Sharing SOCKS5 proxy error", e)
+                    VpnManager.appendLog("Sharing SOCKS5 proxy error: ${e.message}")
                 }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e(TAG, "HTTP proxy error", e)
-                VpnManager.appendLog("HTTP proxy error: ${e.message}")
+            }
+
+            sharingHttpJob = serviceScope.launch {
+                try {
+                    val server = java.net.ServerSocket().apply {
+                        reuseAddress = true
+                        bind(InetSocketAddress(InetAddress.getByName("0.0.0.0"), httpPort), 50)
+                    }
+                    sharingHttpServer = server
+                    VpnManager.appendLog(
+                        "HTTP proxy ready on 0.0.0.0:$httpPort" +
+                            if (authEnabled) " (auth enabled)" else " (open, no auth)"
+                    )
+                    while (isActive) {
+                        val client = server.accept()
+                        if (!isActive) { runCatching { client.close() }; break }
+                        launch(Dispatchers.IO) {
+                            sharingConnections.add(client)
+                            try {
+                                handleHttpProxyClient(client, coreSocksPort, username, password)
+                            } finally {
+                                sharingConnections.remove(client)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    Log.e(TAG, "HTTP proxy error", e)
+                    VpnManager.appendLog("HTTP proxy error: ${e.message}")
+                }
             }
         }
     }
@@ -814,6 +826,9 @@ class GooseRelayVpnService : VpnService() {
         runCatching { sharingHttpServer?.close() }
         sharingSocksServer = null
         sharingHttpServer = null
+        val open = sharingConnections.toList()
+        sharingConnections.clear()
+        open.forEach { c -> runCatching { c.close() } }
     }
 
     private suspend fun ensureSharingPortFree(port: Int, coreSocksPort: Int) {
@@ -922,24 +937,9 @@ class GooseRelayVpnService : VpnService() {
         return java.security.MessageDigest.isEqual(a, b)
     }
 
-    private fun readLineUnbuffered(input: java.io.InputStream): String? {
-        val bytes = ArrayList<Byte>()
-        while (true) {
-            val next = input.read()
-            if (next < 0) {
-                if (bytes.isEmpty()) return null
-                break
-            }
-            if (next == '\n'.code) break
-            if (next != '\r'.code) {
-                bytes.add(next.toByte())
-            }
-        }
-        return String(bytes.toByteArray(), Charsets.ISO_8859_1)
-    }
-
     private suspend fun handleHttpProxyClient(client: java.net.Socket, upstreamSocksPort: Int, username: String, password: String) {
         try {
+            client.soTimeout = 15000
             val input = client.getInputStream()
             val output = client.getOutputStream().bufferedWriter()
 
@@ -986,8 +986,9 @@ class GooseRelayVpnService : VpnService() {
                 output.flush()
 
                 val upstream = createSocks5Tunnel(upstreamSocksPort, host, port)
-                upstream.soTimeout = 30000
 
+                client.soTimeout = 0
+                upstream.soTimeout = 30000
                 bridgeBidirectional(client, upstream)
             } else {
                 output.write("HTTP/1.1 405 Method Not Allowed\r\n\r\n")
