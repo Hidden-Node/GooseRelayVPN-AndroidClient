@@ -932,11 +932,6 @@ class GooseRelayVpnService : VpnService() {
         }
     }
 
-    private fun constantTimeEquals(a: ByteArray, b: ByteArray): Boolean {
-        if (a.size != b.size) return false
-        return java.security.MessageDigest.isEqual(a, b)
-    }
-
     private suspend fun handleHttpProxyClient(client: java.net.Socket, upstreamSocksPort: Int, username: String, password: String) {
         try {
             client.soTimeout = 15000
@@ -1130,27 +1125,5 @@ class GooseRelayVpnService : VpnService() {
         val skip = ByteArray(addrLen + 2)
         readFully(input, skip, 0, skip.size)
         return socket
-    }
-
-    private fun isValidBasicProxyAuth(header: String?, username: String, password: String): Boolean {
-        // ponytail: both-or-neither enforced at the UI; service treats blank-blank as open.
-        if (username.isBlank() && password.isBlank()) return true
-        val value = header?.trim().orEmpty()
-        if (!value.startsWith("Basic ", ignoreCase = true)) return false
-        val encoded = value.substringAfter(" ", "").trim()
-        if (encoded.isBlank()) return false
-        val decoded = runCatching {
-            android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
-        }.getOrNull() ?: return false
-        return constantTimeEquals(decoded, "$username:$password".toByteArray(Charsets.UTF_8))
-    }
-
-    private fun readFully(input: java.io.InputStream, buffer: ByteArray, offset: Int, length: Int) {
-        var total = 0
-        while (total < length) {
-            val read = input.read(buffer, offset + total, length - total)
-            if (read < 0) throw IllegalStateException("Unexpected EOF while reading SOCKS5 response")
-            total += read
-        }
     }
 }
