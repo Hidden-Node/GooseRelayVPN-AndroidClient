@@ -14,10 +14,11 @@ import androidx.core.app.NotificationCompat
 import com.gooserelay.gooserelayvpn.App
 import com.gooserelay.gooserelayvpn.MainActivity
 import com.gooserelay.gooserelayvpn.R
-import com.gooserelay.gooserelayvpn.data.local.AppDatabase
+import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.GlobalSettingsStore
 import com.gooserelay.gooserelayvpn.util.VpnManager
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.RandomAccessFile
@@ -26,8 +27,12 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import kotlin.coroutines.coroutineContext
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class GooseRelayVpnService : VpnService() {
+
+    @Inject lateinit var profileRepository: ProfileRepository
 
     companion object {
         const val ACTION_CONNECT = "com.gooserelay.gooserelayvpn.CONNECT"
@@ -115,8 +120,7 @@ class GooseRelayVpnService : VpnService() {
                 acquireWakeLock()
 
                 // Load profile from DB
-                val db = AppDatabase.getInstance(this@GooseRelayVpnService)
-                val profile = db.profileDao().getProfileById(profileId)
+                val profile = profileRepository.getProfileById(profileId)
                     ?: throw IllegalStateException("Profile not found")
                 val socksPort = profile.socksPort.takeIf { it in 1..65535 } ?: DEFAULT_SOCKS_PORT
                 activeLocalSocksPort = socksPort

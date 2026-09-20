@@ -8,8 +8,10 @@ import android.service.quicksettings.TileService
 import androidx.annotation.RequiresApi
 import com.gooserelay.gooserelayvpn.MainActivity
 import com.gooserelay.gooserelayvpn.R
-import com.gooserelay.gooserelayvpn.data.local.AppDatabase
+import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
 import com.gooserelay.gooserelayvpn.util.VpnManager
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,7 +21,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @RequiresApi(Build.VERSION_CODES.N)
+@AndroidEntryPoint
 class VpnTileService : TileService() {
+
+    @Inject lateinit var profileRepository: ProfileRepository
 
     private val tileScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -56,9 +61,7 @@ class VpnTileService : TileService() {
             // call must not block the system's main thread or ANR the
             // quick-settings shade.
             val selectedProfile = withContext(Dispatchers.IO) {
-                AppDatabase.getInstance(this@VpnTileService)
-                    .profileDao()
-                    .getSelectedProfile()
+                profileRepository.getSelectedProfile()
             }
 
             // If the tile service was torn down while we were reading
