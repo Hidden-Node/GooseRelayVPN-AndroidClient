@@ -372,9 +372,9 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                     isError = socksPortMissing || socksPortRequiresRoot || sharingPortsEqual,
                                     supportingText = {
                                         when {
+                                            sharingPortsEqual -> Text(stringResource(R.string.global_sharing_ports_equal), color = MaterialTheme.colorScheme.error)
                                             socksPortMissing -> Text(stringResource(R.string.global_socks5_port_required))
                                             socksPortRequiresRoot -> Text(stringResource(R.string.global_port_root_warning))
-                                            sharingPortsEqual -> Text(stringResource(R.string.global_sharing_ports_equal), color = MaterialTheme.colorScheme.error)
                                         }
                                     },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -396,9 +396,9 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                     isError = httpPortMissing || httpPortRequiresRoot || sharingPortsEqual,
                                     supportingText = {
                                         when {
+                                            sharingPortsEqual -> Text(stringResource(R.string.global_sharing_ports_equal), color = MaterialTheme.colorScheme.error)
                                             httpPortMissing -> Text(stringResource(R.string.global_http_port_required))
                                             httpPortRequiresRoot -> Text(stringResource(R.string.global_port_root_warning))
-                                            sharingPortsEqual -> Text(stringResource(R.string.global_sharing_ports_equal), color = MaterialTheme.colorScheme.error)
                                         }
                                     },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
