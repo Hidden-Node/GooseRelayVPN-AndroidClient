@@ -28,6 +28,9 @@ deploy.sh
 *.token
 *.log
 
+# Advisor plan files (local only, never pushed)
+/plans/
+
 # Bench artifacts (baselines/ are committed; results/ are per-run)
 /bench/bin/
 /bench/results/*.json
