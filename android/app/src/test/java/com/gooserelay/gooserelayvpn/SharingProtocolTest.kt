@@ -75,6 +75,9 @@ class SharingProtocolTest {
         assertThat(isValidBasicProxyAuth("Bearer xyz", "user", "pass", ::jvmDecode)).isFalse()
     }
 
+    // NOTE: production uses lenient android.util.Base64 while this test injects
+    // strict java.util.Base64; both fail closed (null -> false here, garbage ->
+    // constantTimeEquals mismatch -> false in production).
     @Test
     fun `malformed base64 fails without throwing`() {
         assertThat(isValidBasicProxyAuth("Basic !!!not-base64!!!", "user", "pass", ::jvmDecode)).isFalse()

@@ -68,6 +68,7 @@ class GooseRelayVpnService : VpnService() {
     private var sharingHttpServer: java.net.ServerSocket? = null
     private val sharingConnections = java.util.Collections.synchronizedSet(mutableSetOf<java.net.Socket>())
     private val sharingStartStopMutex = kotlinx.coroutines.sync.Mutex()
+    private val sharingGeneration = java.util.concurrent.atomic.AtomicInteger(0)
     private var logTailJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -757,12 +758,14 @@ class GooseRelayVpnService : VpnService() {
             ensureSharingPortFree(socksPort, coreSocksPort)
             ensureSharingPortFree(httpPort, coreSocksPort)
 
+            val myGeneration = sharingGeneration.get()
             sharingSocksJob = serviceScope.launch {
                 try {
                     val server = java.net.ServerSocket().apply {
                         reuseAddress = true
                         bind(InetSocketAddress(InetAddress.getByName("0.0.0.0"), socksPort), 50)
                     }
+                    if (sharingGeneration.get() != myGeneration) { runCatching { server.close() }; return@launch }
                     sharingSocksServer = server
                     VpnManager.appendLog(
                         "Sharing SOCKS5 proxy ready on 0.0.0.0:$socksPort" +
@@ -793,6 +796,7 @@ class GooseRelayVpnService : VpnService() {
                         reuseAddress = true
                         bind(InetSocketAddress(InetAddress.getByName("0.0.0.0"), httpPort), 50)
                     }
+                    if (sharingGeneration.get() != myGeneration) { runCatching { server.close() }; return@launch }
                     sharingHttpServer = server
                     VpnManager.appendLog(
                         "HTTP proxy ready on 0.0.0.0:$httpPort" +
@@ -820,14 +824,14 @@ class GooseRelayVpnService : VpnService() {
     }
 
     private fun stopSharingServers() {
+        sharingGeneration.incrementAndGet()
         sharingSocksJob?.cancel()
         sharingHttpJob?.cancel()
         runCatching { sharingSocksServer?.close() }
         runCatching { sharingHttpServer?.close() }
         sharingSocksServer = null
         sharingHttpServer = null
-        val open = sharingConnections.toList()
-        sharingConnections.clear()
+        val open = synchronized(sharingConnections) { sharingConnections.toList().also { sharingConnections.clear() } }
         open.forEach { c -> runCatching { c.close() } }
     }
 
@@ -954,6 +958,10 @@ class GooseRelayVpnService : VpnService() {
                 val line = readLineUnbuffered(input) ?: break
                 if (line.isBlank()) break
                 headerLines.add(line)
+                if (headerLines.size > 100) {
+                    output.write("HTTP/1.1 431 Request Header Fields Too Large\r\nConnection: close\r\n\r\n"); output.flush()
+                    return
+                }
                 val idx = line.indexOf(':')
                 if (idx <= 0) continue
                 val name = line.substring(0, idx).trim()
@@ -1032,8 +1040,9 @@ class GooseRelayVpnService : VpnService() {
                 upstreamOut.flush()
                 bridgeBidirectional(client, upstream)
             }
-} catch (_: Exception) {}
+} catch (_: Exception) {} finally {
         runCatching { client.close() }
+    }
     }
 
     private suspend fun bridgeBidirectional(client: java.net.Socket, upstream: java.net.Socket) = coroutineScope {

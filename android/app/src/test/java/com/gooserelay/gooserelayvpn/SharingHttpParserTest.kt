@@ -56,4 +56,38 @@ class SharingHttpParserTest {
     fun `relative form GET is rejected`() {
         assertThat(parseProxyTarget("GET", "/generate_204")).isNull()
     }
+
+    @Test
+    fun `CONNECT blank host with port is rejected`() {
+        assertThat(parseProxyTarget("CONNECT", ":443")).isNull()
+    }
+
+    @Test
+    fun `CONNECT bracket garbage suffix is rejected`() {
+        assertThat(parseProxyTarget("CONNECT", "[::1]garbage")).isNull()
+    }
+
+    @Test
+    fun `CONNECT empty bracket host is rejected`() {
+        assertThat(parseProxyTarget("CONNECT", "[]:443")).isNull()
+    }
+
+    @Test
+    fun `CONNECT unbracketed IPv6 is rejected`() {
+        assertThat(parseProxyTarget("CONNECT", "::1")).isNull()
+    }
+
+    @Test
+    fun `absolute-form IPv6 parses`() {
+        val t = parseProxyTarget("GET", "http://[::1]:8080/a")!!
+        assertThat(t.host).isEqualTo("::1")
+        assertThat(t.port).isEqualTo(8080)
+        assertThat(t.path).isEqualTo("/a")
+    }
+
+    @Test
+    fun `absolute-form query without slash`() {
+        val t = parseProxyTarget("GET", "http://example.com?x=1")!!
+        assertThat(t.path).isEqualTo("/?x=1")
+    }
 }
