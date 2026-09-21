@@ -97,22 +97,19 @@ class VpnTileService : TileService() {
 
     private fun updateTile() {
         val tile = qsTile ?: return
-        when (VpnManager.state.value) {
-            VpnManager.VpnState.CONNECTED -> {
-                tile.state = Tile.STATE_ACTIVE
-                tile.label = getString(R.string.app_name)
-                tile.subtitle = "Connected"
-            }
-            VpnManager.VpnState.CONNECTING -> {
-                tile.state = Tile.STATE_ACTIVE
-                tile.label = getString(R.string.app_name)
-                tile.subtitle = "Connecting..."
-            }
-            else -> {
-                tile.state = Tile.STATE_INACTIVE
-                tile.label = getString(R.string.app_name)
-                tile.subtitle = "Disconnected"
-            }
+        val subtitle: String? = when (VpnManager.state.value) {
+            VpnManager.VpnState.CONNECTED -> "Connected"
+            VpnManager.VpnState.CONNECTING -> "Connecting..."
+            else -> "Disconnected"
+        }
+        tile.state = when (VpnManager.state.value) {
+            VpnManager.VpnState.CONNECTED -> Tile.STATE_ACTIVE
+            VpnManager.VpnState.CONNECTING -> Tile.STATE_ACTIVE
+            else -> Tile.STATE_INACTIVE
+        }
+        tile.label = getString(R.string.app_name)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            tile.subtitle = subtitle // API 29+; on 24–28 the tile shows label only (was a crash on 7/8/9)
         }
         tile.updateTile()
     }

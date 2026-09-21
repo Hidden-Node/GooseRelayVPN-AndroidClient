@@ -40,6 +40,10 @@ jobs:
         working-directory: android
         run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --stacktrace
 
+      - name: Run lint (baseline-enforced)
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew :app:lintDebug --stacktrace
+
       - name: Compile instrumented tests
         working-directory: android
         run: chmod +x gradlew && ./gradlew :app:assembleDebugAndroidTest --stacktrace

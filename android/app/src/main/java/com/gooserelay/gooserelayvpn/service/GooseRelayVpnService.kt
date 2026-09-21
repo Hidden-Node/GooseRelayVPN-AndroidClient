@@ -255,7 +255,9 @@ class GooseRelayVpnService : VpnService() {
                     .setSession(getString(R.string.app_name))
                     .setMtu(1500)
                     .setBlocking(false)
-                    .setUnderlyingNetworks(null)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                    builder.setUnderlyingNetworks(null) // API 22+: no-op fix for Android 5.0 crash
+                }
                 
                 if (globalSettings.fakeDnsEnabled) {
                     builder.addAddress("172.19.0.1", 30)
@@ -393,7 +395,9 @@ class GooseRelayVpnService : VpnService() {
                         if (isStopping) return
                         
                         VpnManager.appendLog("Underlying network changed, updating VPN underlying network...")
-                        setUnderlyingNetworks(arrayOf(network))
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                            setUnderlyingNetworks(arrayOf(network))
+                        }
                     }
                 }
                 try {
