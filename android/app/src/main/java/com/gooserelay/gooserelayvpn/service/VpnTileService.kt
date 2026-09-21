@@ -97,12 +97,13 @@ class VpnTileService : TileService() {
 
     private fun updateTile() {
         val tile = qsTile ?: return
-        val subtitle: String? = when (VpnManager.state.value) {
+        val state = VpnManager.state.value
+        val subtitle: String = when (state) {
             VpnManager.VpnState.CONNECTED -> "Connected"
             VpnManager.VpnState.CONNECTING -> "Connecting..."
             else -> "Disconnected"
         }
-        tile.state = when (VpnManager.state.value) {
+        tile.state = when (state) {
             VpnManager.VpnState.CONNECTED -> Tile.STATE_ACTIVE
             VpnManager.VpnState.CONNECTING -> Tile.STATE_ACTIVE
             else -> Tile.STATE_INACTIVE
