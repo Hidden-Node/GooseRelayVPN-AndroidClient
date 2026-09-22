@@ -42,6 +42,7 @@ class GooseRelayVpnService : VpnService() {
         private const val TAG = "GooseRelayVPN"
         private const val NOTIFICATION_ID = 1
         private const val DEFAULT_SOCKS_PORT = 1080
+        private const val MAX_SHARING_CONNECTIONS = 64
         private const val SOCKS_STARTUP_TIMEOUT_MS = 30 * 60 * 1000L
         private const val SOCKS_POLL_INTERVAL_MS = 500L
 
@@ -795,6 +796,11 @@ class GooseRelayVpnService : VpnService() {
                     while (isActive) {
                         val client = server.accept()
                         if (!isActive) { runCatching { client.close() }; break }
+                        if (synchronized(sharingConnections) { sharingConnections.size >= MAX_SHARING_CONNECTIONS }) {
+                            VpnManager.appendLog("Sharing connection limit reached; rejecting client")
+                            runCatching { client.close() }
+                            continue
+                        }
                         launch(Dispatchers.IO) {
                             sharingConnections.add(client)
                             try {
@@ -826,6 +832,11 @@ class GooseRelayVpnService : VpnService() {
                     while (isActive) {
                         val client = server.accept()
                         if (!isActive) { runCatching { client.close() }; break }
+                        if (synchronized(sharingConnections) { sharingConnections.size >= MAX_SHARING_CONNECTIONS }) {
+                            VpnManager.appendLog("Sharing connection limit reached; rejecting client")
+                            runCatching { client.close() }
+                            continue
+                        }
                         launch(Dispatchers.IO) {
                             sharingConnections.add(client)
                             try {
