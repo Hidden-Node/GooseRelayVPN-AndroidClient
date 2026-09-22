@@ -73,6 +73,7 @@ import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
+import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 
 data class ScriptKeyEntry(
     val id: String = "",
@@ -105,69 +106,6 @@ fun scriptKeysToText(entries: List<ScriptKeyEntry>): String {
     return result
 }
 
-fun parseProfileFromJson(raw: String, defaultName: String? = null): ProfileEntity? {
-    return try {
-        val root = Gson().fromJson(raw, JsonObject::class.java)
-        
-        // Check if it has at least one identifying part
-        if (!root.has("script_keys") && !root.has("tunnel_key")) return null
-
-        val name = root.get("name")?.asString ?: defaultName ?: "Imported"
-        val debugTiming = root.get("debug_timing")?.asBoolean ?: false
-        val socksHost = root.get("socks_host")?.asString ?: "127.0.0.1"
-        val socksPort = root.get("socks_port")?.asInt ?: 1080
-        val socksUser = root.get("socks_user")?.asString ?: ""
-        val socksPass = root.get("socks_pass")?.asString ?: ""
-        val googleHost = root.get("google_host")?.asString ?: "216.239.38.120"
-        val sniJson = when {
-            root.get("sni")?.isJsonArray == true -> Gson().toJson(root.getAsJsonArray("sni").mapNotNull { it.asString })
-            root.get("sni")?.isJsonPrimitive == true -> Gson().toJson(listOf(root.get("sni").asString))
-            else -> "[\"www.google.com\", \"mail.google.com\", \"accounts.google.com\"]"
-        }
-        val scriptKeysText = when {
-            root.get("script_keys")?.isJsonArray == true -> {
-                root.getAsJsonArray("script_keys").mapNotNull { element ->
-                    when {
-                        element.isJsonObject -> {
-                            val obj = element.asJsonObject
-                            val id = obj.get("id")?.asString?.trim()
-                            val account = obj.get("account")?.asString?.trim()
-                            if (id.isNullOrBlank()) null
-                            else if (account.isNullOrBlank()) id
-                            else "$id|$account"
-                        }
-                        element.isJsonPrimitive -> element.asString.trim()
-                        else -> null
-                    }
-                }.filter { it.isNotBlank() }.joinToString("\n")
-            }
-            root.get("script_keys")?.isJsonPrimitive == true -> root.get("script_keys").asString.trim()
-            else -> ""
-        }
-        val coalesceStepMs = root.get("coalesce_step_ms")?.asInt ?: 0
-        val idleSlotsPerBucket = root.get("idle_slots_per_bucket")?.asInt?.coerceIn(1, 3) ?: 2
-        val tunnelKey = root.get("tunnel_key")?.asString ?: ""
-
-        ProfileEntity(
-            name = name,
-            debugTiming = debugTiming,
-            socksHost = socksHost,
-            socksPort = socksPort,
-            socksUser = socksUser,
-            socksPass = socksPass,
-            googleHost = googleHost,
-            sniJson = sniJson,
-            scriptKeysText = scriptKeysText,
-            tunnelKey = tunnelKey,
-            coalesceStepMs = coalesceStepMs,
-            idleSlotsPerBucket = idleSlotsPerBucket,
-            remoteUrl = null
-        )
-    } catch (_: Exception) {
-        null
-    }
-}
-
 fun parseGooseRelayProtocol(raw: String): ProfileEntity? {
     val trimmed = raw.trim()
     if (!trimmed.startsWith("goose-relay://")) return null
@@ -175,7 +113,7 @@ fun parseGooseRelayProtocol(raw: String): ProfileEntity? {
         val base64Content = trimmed.substring("goose-relay://".length)
         val decodedBytes = Base64.decode(base64Content, Base64.DEFAULT)
         val decodedString = String(decodedBytes)
-        parseProfileFromJson(decodedString)
+        ProfileJsonParser.parse(decodedString)
     } catch (_: Exception) {
         null
     }
@@ -271,7 +209,7 @@ fun ProfilesScreen(
                                                 viewModel.importProfileFromUrl(text, context)
                                             }
                                             else -> {
-                                                val profile = parseGooseRelayProtocol(text) ?: parseProfileFromJson(text)
+                                                val profile = parseGooseRelayProtocol(text) ?: ProfileJsonParser.parse(text)
                                                 if (profile != null) {
                                                     viewModel.addProfile(profile)
                                                 } else {
