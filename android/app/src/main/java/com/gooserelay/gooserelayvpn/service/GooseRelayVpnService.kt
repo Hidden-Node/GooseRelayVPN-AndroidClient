@@ -96,7 +96,20 @@ class GooseRelayVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        if (intent == null) {
+            // Sticky restart after a system kill: no action to take (no
+            // auto-reconnect by design). The service is now "started", so it
+            // must enter the foreground once to avoid
+            // ForegroundServiceDidNotStartInTimeException on Android 12+,
+            // then stop cleanly.
+            runCatching {
+                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_disconnected)))
+            }.onFailure { Log.w(TAG, "startForeground on restart failed", it) }
+            VpnManager.updateState(VpnManager.VpnState.DISCONNECTED)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        when (intent.action) {
             ACTION_CONNECT -> {
                 val profileId = intent.getLongExtra(EXTRA_PROFILE_ID, -1)
                 if (profileId > 0) {
