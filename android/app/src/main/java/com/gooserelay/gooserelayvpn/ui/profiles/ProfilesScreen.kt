@@ -3,7 +3,6 @@ package com.gooserelay.gooserelayvpn.ui.profiles
 import android.content.Context
 import android.net.Uri
 import android.util.Base64
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -82,7 +81,6 @@ data class ScriptKeyEntry(
 
 fun parseScriptKeysText(text: String): List<ScriptKeyEntry> {
     if (text.isBlank()) return emptyList()
-    Log.d("ProfilesScreen", "Parsing script keys text: '$text'")
     return text.split("\n")
         .filter { it.isNotBlank() }
         .map { line ->
@@ -90,11 +88,9 @@ fun parseScriptKeysText(text: String): List<ScriptKeyEntry> {
                 val parts = line.split("|")
                 val id = parts[0].trim()
                 val account = parts.getOrElse(1) { "" }.trim()
-                Log.d("ProfilesScreen", "  Parsed pipe: id='$id', account='$account'")
                 ScriptKeyEntry(id, account)
             } else {
                 val id = line.trim()
-                Log.d("ProfilesScreen", "  Parsed single: id='$id'")
                 ScriptKeyEntry(id, "")
             }
         }
@@ -106,7 +102,6 @@ fun scriptKeysToText(entries: List<ScriptKeyEntry>): String {
         .joinToString("\n") { entry ->
             if (entry.account.isNotBlank()) "${entry.id}|${entry.account}" else entry.id
         }
-    Log.d("ProfilesScreen", "scriptKeysToText output: '$result'")
     return result
 }
 
