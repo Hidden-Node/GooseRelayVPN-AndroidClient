@@ -10,8 +10,8 @@ import com.google.gson.JsonObject
  * through here so identical JSON produces identical profiles everywhere.
  *
  * Unification decisions (approved by maintainer, plan 027):
- * - socks_port coerced into 1..65535 (fixes the old 1024-clamp bug that
- *   rewrote port 1080 to 1024 on URL imports).
+ * - socks_port coerced into 1..65535 (fixes the old 1024-floor clamp that
+ *   rewrote sub-1024 ports to 1024 on URL imports).
  * - sni primitive parsed as a comma-separated list.
  * - no required-field gate; callers may pre-validate for UX.
  */
