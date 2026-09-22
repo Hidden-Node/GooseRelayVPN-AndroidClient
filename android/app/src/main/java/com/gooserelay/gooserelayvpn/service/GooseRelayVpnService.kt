@@ -930,7 +930,10 @@ class GooseRelayVpnService : VpnService() {
                 output.write(byteArrayOf(0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
                 return
             }
-            upstream.soTimeout = 30000
+            // Handshake is done: idle timeouts off. A quiet tunnel (SSH,
+            // WebSocket) must not be killed by a read timeout.
+            upstream.soTimeout = 0
+            client.soTimeout = 0
             // 0x05 0x00 0x00 0x01 + 4-byte bind addr + 2-byte bind port
             output.write(byteArrayOf(0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
 
@@ -1003,7 +1006,7 @@ class GooseRelayVpnService : VpnService() {
                     output.write("HTTP/1.1 502 Bad Gateway\r\n\r\n"); output.flush()
                     return
                 }
-                upstream.soTimeout = 30000
+                upstream.soTimeout = 0
                 client.soTimeout = 0
                 output.write("HTTP/1.1 200 Connection Established\r\n\r\n")
                 output.flush()
@@ -1021,7 +1024,7 @@ class GooseRelayVpnService : VpnService() {
                     output.write("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n"); output.flush()
                     return
                 }
-                upstream.soTimeout = 30000
+                upstream.soTimeout = 0
                 client.soTimeout = 0
                 // Re-emit the request with a relative path (origin-form) to
                 // the tunnel, then bridge; the tunnel's SOCKS5 target is
