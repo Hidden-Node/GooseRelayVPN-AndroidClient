@@ -23,9 +23,15 @@ object ProfileJsonParser {
 
     /** Full-parse variant: absent fields become defaults. */
     fun parse(raw: String, defaultName: String? = null, remoteUrl: String? = null): ProfileEntity? {
-        return runCatching { gson.fromJson(raw, JsonObject::class.java) }
-            .map { root -> fromRoot(root, defaultName ?: "Imported", remoteUrl) }
-            .getOrNull()
+        // Note: Gson.fromJson returns null (instead of throwing) for empty
+        // input and the "null" literal, so the null root is checked
+        // explicitly — a runCatching{}.map{} chain lets that NPE escape.
+        return try {
+            val root = gson.fromJson(raw, JsonObject::class.java) ?: return null
+            fromRoot(root, defaultName ?: "Imported", remoteUrl)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**
@@ -34,23 +40,26 @@ object ProfileJsonParser {
      * merge) when present, matching today's behavior.
      */
     fun mergeInto(profile: ProfileEntity, raw: String): ProfileEntity? {
-        return runCatching { gson.fromJson(raw, JsonObject::class.java) }
-            .map { root ->
-                profile.copy(
-                    debugTiming = root.get("debug_timing")?.asBoolean ?: profile.debugTiming,
-                    socksHost = root.get("socks_host")?.asString ?: profile.socksHost,
-                    socksPort = root.get("socks_port")?.asInt?.coerceIn(1, 65535) ?: profile.socksPort,
-                    socksUser = root.get("socks_user")?.asString ?: profile.socksUser,
-                    socksPass = root.get("socks_pass")?.asString ?: profile.socksPass,
-                    googleHost = root.get("google_host")?.asString ?: profile.googleHost,
-                    sniJson = parseSni(root.get("sni")),
-                    scriptKeysText = parseScriptKeys(root.get("script_keys")) ?: profile.scriptKeysText,
-                    tunnelKey = root.get("tunnel_key")?.asString ?: profile.tunnelKey,
-                    coalesceStepMs = root.get("coalesce_step_ms")?.asInt ?: profile.coalesceStepMs,
-                    idleSlotsPerBucket = root.get("idle_slots_per_bucket")?.asInt?.coerceIn(1, 3) ?: profile.idleSlotsPerBucket
-                )
-            }
-            .getOrNull()
+        // See parse(): the null root is checked explicitly because Gson
+        // returns null (instead of throwing) for empty/"null" input.
+        return try {
+            val root = gson.fromJson(raw, JsonObject::class.java) ?: return null
+            profile.copy(
+                debugTiming = root.get("debug_timing")?.asBoolean ?: profile.debugTiming,
+                socksHost = root.get("socks_host")?.asString ?: profile.socksHost,
+                socksPort = root.get("socks_port")?.asInt?.coerceIn(1, 65535) ?: profile.socksPort,
+                socksUser = root.get("socks_user")?.asString ?: profile.socksUser,
+                socksPass = root.get("socks_pass")?.asString ?: profile.socksPass,
+                googleHost = root.get("google_host")?.asString ?: profile.googleHost,
+                sniJson = parseSni(root.get("sni")),
+                scriptKeysText = parseScriptKeys(root.get("script_keys")) ?: profile.scriptKeysText,
+                tunnelKey = root.get("tunnel_key")?.asString ?: profile.tunnelKey,
+                coalesceStepMs = root.get("coalesce_step_ms")?.asInt ?: profile.coalesceStepMs,
+                idleSlotsPerBucket = root.get("idle_slots_per_bucket")?.asInt?.coerceIn(1, 3) ?: profile.idleSlotsPerBucket
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun fromRoot(root: JsonObject, name: String, remoteUrl: String?): ProfileEntity {
