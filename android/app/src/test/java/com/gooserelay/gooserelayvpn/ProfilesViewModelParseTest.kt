@@ -36,9 +36,10 @@ class ProfilesViewModelParseTest {
     }
 
     @Test
-    fun `returns null when json lacks script_keys and tunnel_key`() {
+    fun `accepts json without script_keys and tunnel_key`() {
+        // Unified parser (plan 027) has no required-field gate.
         val json = """{"name":"x","google_host":"1.2.3.4"}"""
-        assertThat(vm().parseProfileFromJson(json)).isNull()
+        assertThat(vm().parseProfileFromJson(json)).isNotNull()
     }
 
     @Test
@@ -50,15 +51,15 @@ class ProfilesViewModelParseTest {
     }
 
     @Test
-    fun `clamps socksPort to 1024_65535 range`() {
+    fun `clamps socksPort to 1_65535 range`() {
         val tooHigh = """{"tunnel_key":"k","socks_port":99999}"""
         assertThat(vm().parseProfileFromJson(tooHigh)!!.socksPort).isEqualTo(65535)
 
         val tooLow = """{"tunnel_key":"k","socks_port":0}"""
-        assertThat(vm().parseProfileFromJson(tooLow)!!.socksPort).isEqualTo(1024)
+        assertThat(vm().parseProfileFromJson(tooLow)!!.socksPort).isEqualTo(1)
 
-        val privileged = """{"tunnel_key":"k","socks_port":80}"""
-        assertThat(vm().parseProfileFromJson(privileged)!!.socksPort).isEqualTo(1024)
+        val unprivileged = """{"tunnel_key":"k","socks_port":80}"""
+        assertThat(vm().parseProfileFromJson(unprivileged)!!.socksPort).isEqualTo(80)
     }
 
     @Test

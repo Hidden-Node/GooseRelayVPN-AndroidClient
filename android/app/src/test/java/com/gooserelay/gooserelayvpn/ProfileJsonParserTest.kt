@@ -6,22 +6,22 @@ import com.gooserelay.gooserelayvpn.data.local.ProfileDao
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
 import com.gooserelay.gooserelayvpn.ui.profiles.ProfilesViewModel
-import com.gooserelay.gooserelayvpn.ui.profiles.parseProfileFromJson as parseScreenProfile
 import com.gooserelay.gooserelayvpn.ui.settings.SettingsViewModel
+import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Test
 
 /**
- * Characterization tests for the four profile-JSON import parsers (plan 027,
- * Step 1). Each assertion pins the behavior of the CURRENT copies as they
- * behave TODAY — including drift between copies. Step 4 re-points these at
- * the unified ProfileJsonParser and removes the bug-pinning tests.
+ * Tests for the unified ProfileJsonParser (plan 027, Step 4). All entry
+ * points (file intent via MainActivity, in-app file picker + URL import via
+ * ProfilesViewModel, settings-page merge via SettingsViewModel) delegate to
+ * this parser, so identical JSON produces identical profiles everywhere.
  *
  * NOTE: MainActivity.parseImportedProfile is private and needs an Activity +
- * Uri, so it cannot run on plain JVM unit tests (no Robolectric). Its
- * behavior was verified by inspection: socks_port coerceIn(1, 65535)
- * (1080 stays 1080), sni primitive CSV-split, no required-field gate.
+ * Uri, so it cannot run on plain JVM unit tests (no Robolectric). Its body
+ * is a one-line delegation to ProfileJsonParser.parse, covered here by the
+ * parse-with-explicit-name tests.
  */
 class ProfileJsonParserTest {
 
@@ -69,11 +69,13 @@ class ProfileJsonParserTest {
         "tunnel_key":"TKEY","coalesce_step_ms":7,"idle_slots_per_bucket":3}
     """.trimIndent()
 
-    // 1. Full happy path, per copy (port 2080: unaffected by any clamp).
+    private val defaultSni = """["www.google.com", "mail.google.com", "accounts.google.com"]"""
+
+    // Happy path through the unified parser.
 
     @Test
-    fun `viewModel happy path parses all fields`() {
-        val p = vm().parseProfileFromJson(fullJson(), defaultName = "File")!!
+    fun `parse happy path parses all fields`() {
+        val p = ProfileJsonParser.parse(fullJson(), defaultName = "File")!!
         assertThat(p.name).isEqualTo("Work")
         assertThat(p.debugTiming).isTrue()
         assertThat(p.socksHost).isEqualTo("0.0.0.0")
@@ -89,18 +91,136 @@ class ProfileJsonParserTest {
     }
 
     @Test
-    fun `screen top-level happy path parses all fields`() {
-        val p = parseScreenProfile(fullJson(), "File")!!
-        assertThat(p.name).isEqualTo("Work")
-        assertThat(p.socksPort).isEqualTo(2080)
-        assertThat(p.sniJson).isEqualTo("""["a.com","b.com"]""")
-        assertThat(p.scriptKeysText).isEqualTo("ID1|a@x.com\nplain-key")
-        assertThat(p.tunnelKey).isEqualTo("TKEY")
-        assertThat(p.remoteUrl).isNull()
+    fun `parse defaults when only tunnel key present`() {
+        val p = ProfileJsonParser.parse("""{"tunnel_key":"k"}""")!!
+        assertThat(p.name).isEqualTo("Imported")
+        assertThat(p.socksHost).isEqualTo("127.0.0.1")
+        assertThat(p.socksPort).isEqualTo(1080)
+        assertThat(p.googleHost).isEqualTo("216.239.38.120")
+        assertThat(p.sniJson).isEqualTo(defaultSni)
+        assertThat(p.scriptKeysText).isEqualTo("")
+        assertThat(p.tunnelKey).isEqualTo("k")
+        assertThat(p.coalesceStepMs).isEqualTo(0)
+        assertThat(p.idleSlotsPerBucket).isEqualTo(2)
     }
 
     @Test
-    fun `settings merge happy path replaces present fields keeps name`() {
+    fun `parse accepts json without script keys or tunnel key`() {
+        // The old in-app copies gated on script_keys/tunnel_key; the unified
+        // parser is permissive by maintainer decision (plan 027).
+        val p = ProfileJsonParser.parse("""{"name":"x","google_host":"1.2.3.4"}""")!!
+        assertThat(p.name).isEqualTo("x")
+        assertThat(p.googleHost).isEqualTo("1.2.3.4")
+        assertThat(p.scriptKeysText).isEqualTo("")
+        assertThat(p.tunnelKey).isEqualTo("")
+    }
+
+    // Port regression: 1080 (and sub-1024 ports) survive every entry point.
+
+    @Test
+    fun `port 1080 survives the unified parser`() {
+        assertThat(ProfileJsonParser.parse("""{"socks_port":1080}""")!!.socksPort)
+            .isEqualTo(1080)
+    }
+
+    @Test
+    fun `port 1080 survives the viewModel delegation`() {
+        assertThat(vm().parseProfileFromJson("""{"tunnel_key":"k","socks_port":1080}""")!!.socksPort)
+            .isEqualTo(1080)
+    }
+
+    @Test
+    fun `port 1080 survives the settings merge`() {
+        assertThat(settingsVm().importJsonToProfile(baseProfile(), """{"socks_port":1080}""")!!.socksPort)
+            .isEqualTo(1080)
+    }
+
+    @Test
+    fun `sub-1024 ports are no longer rewritten to 1024`() {
+        // Regression for the old 1024-floor clamp in the ViewModel copy.
+        assertThat(ProfileJsonParser.parse("""{"socks_port":443}""")!!.socksPort)
+            .isEqualTo(443)
+        assertThat(vm().parseProfileFromJson("""{"tunnel_key":"k","socks_port":443}""")!!.socksPort)
+            .isEqualTo(443)
+    }
+
+    @Test
+    fun `port clamps into 1_65535 range`() {
+        assertThat(ProfileJsonParser.parse("""{"socks_port":99999}""")!!.socksPort)
+            .isEqualTo(65535)
+        assertThat(ProfileJsonParser.parse("""{"socks_port":0}""")!!.socksPort)
+            .isEqualTo(1)
+    }
+
+    // sni variants.
+
+    @Test
+    fun `sni array parses`() {
+        val p = ProfileJsonParser.parse("""{"sni":["a.com","b.com"]}""")!!
+        assertThat(p.sniJson).isEqualTo("""["a.com","b.com"]""")
+    }
+
+    @Test
+    fun `sni primitive csv splits into entries`() {
+        val p = ProfileJsonParser.parse("""{"sni":"a.com, b.com"}""")!!
+        assertThat(p.sniJson).isEqualTo("""["a.com","b.com"]""")
+    }
+
+    @Test
+    fun `sni single primitive wraps as one entry`() {
+        val p = ProfileJsonParser.parse("""{"sni":"solo.com"}""")!!
+        assertThat(p.sniJson).isEqualTo("""["solo.com"]""")
+    }
+
+    @Test
+    fun `sni absent falls back to defaults`() {
+        val p = ProfileJsonParser.parse("""{"tunnel_key":"k"}""")!!
+        assertThat(p.sniJson).isEqualTo(defaultSni)
+    }
+
+    // script_keys variants.
+
+    @Test
+    fun `script keys object array and string array`() {
+        val p = ProfileJsonParser.parse(
+            """{"script_keys":[{"id":"A","account":"b@x.com"},{"id":"B"},"  C  ",{"id":""}]}"""
+        )!!
+        assertThat(p.scriptKeysText).isEqualTo("A|b@x.com\nB\nC")
+    }
+
+    @Test
+    fun `script keys primitive trims`() {
+        val p = ProfileJsonParser.parse("""{"script_keys":"  plain  "}""")!!
+        assertThat(p.scriptKeysText).isEqualTo("plain")
+    }
+
+    @Test
+    fun `script keys absent defaults to empty`() {
+        val p = ProfileJsonParser.parse("""{"tunnel_key":"k"}""")!!
+        assertThat(p.scriptKeysText).isEqualTo("")
+    }
+
+    // Invalid JSON -> null for both variants.
+
+    @Test
+    fun `invalid json returns null`() {
+        assertThat(ProfileJsonParser.parse("not json")).isNull()
+        assertThat(ProfileJsonParser.mergeInto(baseProfile(), "not json")).isNull()
+    }
+
+    @Test
+    fun `empty and null-literal json return null`() {
+        // Gson returns a null root (instead of throwing) for these inputs.
+        assertThat(ProfileJsonParser.parse("")).isNull()
+        assertThat(ProfileJsonParser.parse("null")).isNull()
+        assertThat(ProfileJsonParser.mergeInto(baseProfile(), "")).isNull()
+        assertThat(vm().parseProfileFromJson("")).isNull()
+    }
+
+    // Settings merge variant.
+
+    @Test
+    fun `merge happy path replaces present fields keeps name`() {
         val p = settingsVm().importJsonToProfile(baseProfile(), fullJson())!!
         assertThat(p.name).isEqualTo("Base")
         assertThat(p.debugTiming).isTrue()
@@ -113,170 +233,55 @@ class ProfileJsonParserTest {
         assertThat(p.idleSlotsPerBucket).isEqualTo(3)
     }
 
-    // 2. socks_port 1080 drift.
-
     @Test
-    fun `urlImportPinsKnownPortCoercionBug`() {
-        // Live bug: the ViewModel copy clamps into 1024..65535, rewriting
-        // sub-1024 ports to 1024. (Plan text illustrated this with 1080, but
-        // 1080 lies inside 1024..65535 and passes through; the drifted floor
-        // is the actual bug — e.g. 443 becomes 1024.)
-        val p = vm().parseProfileFromJson("""{"tunnel_key":"k","socks_port":443}""")!!
-        assertThat(p.socksPort).isEqualTo(1024)
-    }
-
-    @Test
-    fun `screen top-level keeps port 1080 raw`() {
-        val p = parseScreenProfile("""{"tunnel_key":"k","socks_port":1080}""")!!
-        assertThat(p.socksPort).isEqualTo(1080)
-    }
-
-    @Test
-    fun `settings merge keeps port 1080`() {
-        val p = settingsVm().importJsonToProfile(baseProfile(), """{"socks_port":1080}""")!!
-        assertThat(p.socksPort).isEqualTo(1080)
-    }
-
-    // 3. Defaults when only tunnel_key is present.
-
-    @Test
-    fun `viewModel defaults when only tunnel key present`() {
-        val p = vm().parseProfileFromJson("""{"tunnel_key":"k"}""")!!
-        assertThat(p.name).isEqualTo("Imported")
-        assertThat(p.socksHost).isEqualTo("127.0.0.1")
-        assertThat(p.socksPort).isEqualTo(1080)
-        assertThat(p.googleHost).isEqualTo("216.239.38.120")
-        assertThat(p.sniJson).isEqualTo(
-            """["www.google.com", "mail.google.com", "accounts.google.com"]"""
-        )
-        assertThat(p.scriptKeysText).isEqualTo("")
-        assertThat(p.tunnelKey).isEqualTo("k")
-        assertThat(p.coalesceStepMs).isEqualTo(0)
-        assertThat(p.idleSlotsPerBucket).isEqualTo(2)
-    }
-
-    @Test
-    fun `screen top-level defaults when only tunnel key present`() {
-        val p = parseScreenProfile("""{"tunnel_key":"k"}""")!!
-        assertThat(p.name).isEqualTo("Imported")
-        assertThat(p.socksPort).isEqualTo(1080)
-        assertThat(p.sniJson).isEqualTo(
-            """["www.google.com", "mail.google.com", "accounts.google.com"]"""
-        )
-        assertThat(p.scriptKeysText).isEqualTo("")
-    }
-
-    // 4. sni variants per copy.
-
-    @Test
-    fun `viewModel sni array parses`() {
-        val p = vm().parseProfileFromJson("""{"tunnel_key":"k","sni":["a.com","b.com"]}""")!!
-        assertThat(p.sniJson).isEqualTo("""["a.com","b.com"]""")
-    }
-
-    @Test
-    fun `viewModel sni primitive wraps whole string as single entry`() {
-        // Drift: CSV "a.com, b.com" becomes ONE entry, unlike MainActivity's split.
-        val p = vm().parseProfileFromJson("""{"tunnel_key":"k","sni":"a.com, b.com"}""")!!
-        assertThat(p.sniJson).isEqualTo("""["a.com, b.com"]""")
-    }
-
-    @Test
-    fun `viewModel sni absent falls back to defaults`() {
-        val p = vm().parseProfileFromJson("""{"tunnel_key":"k"}""")!!
-        assertThat(p.sniJson).isEqualTo(
-            """["www.google.com", "mail.google.com", "accounts.google.com"]"""
-        )
-    }
-
-    @Test
-    fun `settings sni primitive falls back to defaults today`() {
-        // Drift: settings copy only honors arrays; primitives reset to defaults.
-        val p = settingsVm().importJsonToProfile(baseProfile(), """{"sni":"solo.com"}""")!!
-        assertThat(p.sniJson).isEqualTo(
-            """["www.google.com","mail.google.com","accounts.google.com"]"""
-        )
-    }
-
-    @Test
-    fun `settings sni array replaces`() {
-        val p = settingsVm().importJsonToProfile(
-            baseProfile(), """{"sni":["a.com", " b.com "]}"""
-        )!!
-        assertThat(p.sniJson).isEqualTo("""["a.com","b.com"]""")
-    }
-
-    // 5. script_keys variants per copy.
-
-    @Test
-    fun `viewModel script keys object array and string array`() {
-        val obj = vm().parseProfileFromJson(
-            """{"tunnel_key":"k","script_keys":[{"id":"A","account":"b@x.com"},{"id":"B"},"  C  ",{"id":""}]}"""
-        )!!
-        assertThat(obj.scriptKeysText).isEqualTo("A|b@x.com\nB\nC")
-    }
-
-    @Test
-    fun `viewModel script keys primitive trims`() {
-        val p = vm().parseProfileFromJson("""{"tunnel_key":"k","script_keys":"  plain  "}""")!!
-        assertThat(p.scriptKeysText).isEqualTo("plain")
-    }
-
-    @Test
-    fun `settings script keys primitive keeps existing today`() {
-        // Drift: settings copy only honors arrays; primitives keep the old value.
-        val p = settingsVm().importJsonToProfile(baseProfile(), """{"script_keys":"plain"}""")!!
-        assertThat(p.scriptKeysText).isEqualTo("OLD|o@x.com")
-    }
-
-    @Test
-    fun `settings script keys absent keeps existing`() {
-        val p = settingsVm().importJsonToProfile(baseProfile(), """{"tunnel_key":"NEW"}""")!!
-        assertThat(p.scriptKeysText).isEqualTo("OLD|o@x.com")
-    }
-
-    // 6. Invalid JSON -> null for every copy.
-
-    @Test
-    fun `invalid json returns null in all copies`() {
-        assertThat(vm().parseProfileFromJson("not json")).isNull()
-        assertThat(parseScreenProfile("not json")).isNull()
-        assertThat(settingsVm().importJsonToProfile(baseProfile(), "not json")).isNull()
-    }
-
-    // 7. Settings merge fallbacks.
-
-    @Test
-    fun `settings merge absent fields keep existing except sni coalesce idle`() {
-        // Current settings behavior: absent scalar fields keep existing values,
-        // but sni resets to defaults, coalesce_step_ms resets to 0 and
-        // idle_slots_per_bucket resets to 2.
+    fun `merge absent fields keep existing values`() {
         val p = settingsVm().importJsonToProfile(baseProfile(), """{"tunnel_key":"NEW"}""")!!
         assertThat(p.socksHost).isEqualTo("9.9.9.9")
         assertThat(p.socksPort).isEqualTo(9999)
         assertThat(p.socksUser).isEqualTo("bu")
         assertThat(p.googleHost).isEqualTo("5.6.7.8")
         assertThat(p.tunnelKey).isEqualTo("NEW")
-        assertThat(p.sniJson).isEqualTo(
-            """["www.google.com","mail.google.com","accounts.google.com"]"""
-        )
-        assertThat(p.coalesceStepMs).isEqualTo(0)
-        assertThat(p.idleSlotsPerBucket).isEqualTo(2)
+        assertThat(p.scriptKeysText).isEqualTo("OLD|o@x.com")
+        assertThat(p.coalesceStepMs).isEqualTo(42)
+        assertThat(p.idleSlotsPerBucket).isEqualTo(1)
     }
 
-    // 8. remoteUrl propagation (ViewModel copy only).
+    @Test
+    fun `merge sni primitive csv replaces`() {
+        val p = settingsVm().importJsonToProfile(baseProfile(), """{"sni":"a.com, b.com"}""")!!
+        assertThat(p.sniJson).isEqualTo("""["a.com","b.com"]""")
+    }
 
     @Test
-    fun `viewModel stores remoteUrl when provided`() {
-        val p = vm().parseProfileFromJson(
+    fun `merge script keys primitive replaces`() {
+        val p = settingsVm().importJsonToProfile(baseProfile(), """{"script_keys":"plain"}""")!!
+        assertThat(p.scriptKeysText).isEqualTo("plain")
+    }
+
+    // Name / remoteUrl propagation.
+
+    @Test
+    fun `parse stores remoteUrl when provided`() {
+        val p = ProfileJsonParser.parse(
             """{"tunnel_key":"k"}""", remoteUrl = "https://example.com/p.json"
         )!!
         assertThat(p.remoteUrl).isEqualTo("https://example.com/p.json")
     }
 
     @Test
-    fun `viewModel defaults name to defaultName when missing`() {
-        val p = vm().parseProfileFromJson("""{"tunnel_key":"k"}""", defaultName = "fallback")!!
+    fun `parse defaults name to defaultName when missing`() {
+        val p = ProfileJsonParser.parse("""{"tunnel_key":"k"}""", defaultName = "fallback")!!
         assertThat(p.name).isEqualTo("fallback")
+    }
+
+    @Test
+    fun `viewModel delegation propagates remoteUrl and defaultName`() {
+        val p = vm().parseProfileFromJson(
+            """{"tunnel_key":"k"}""",
+            defaultName = "fallback",
+            remoteUrl = "https://example.com/p.json"
+        )!!
+        assertThat(p.name).isEqualTo("fallback")
+        assertThat(p.remoteUrl).isEqualTo("https://example.com/p.json")
     }
 }
