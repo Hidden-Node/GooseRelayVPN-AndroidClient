@@ -39,8 +39,6 @@ object VpnManager {
     private val _state = MutableStateFlow(VpnState.DISCONNECTED)
     val state: StateFlow<VpnState> = _state.asStateFlow()
 
-    private val _logs = MutableStateFlow<List<String>>(emptyList())
-    val logs: StateFlow<List<String>> = _logs.asStateFlow()
     private val _logEntries = MutableStateFlow<List<LogEntry>>(emptyList())
     val logEntries: StateFlow<List<LogEntry>> = _logEntries.asStateFlow()
 
@@ -159,13 +157,11 @@ object VpnManager {
             current.removeAt(0)
         }
         _logEntries.value = current
-        _logs.value = current.map { it.line }
         parseScanLine(normalizedLine)
     }
 
     fun clearLogs() {
         _logEntries.value = emptyList()
-        _logs.value = emptyList()
         _scanStatus.value = ScanStatus()
     }
 
