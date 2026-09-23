@@ -35,9 +35,12 @@ object ProfileJsonParser {
     }
 
     /**
-     * Merge variant used by the settings page: absent fields keep the
-     * existing profile's values. `sni` and `script_keys` replace (not
-     * merge) when present, matching today's behavior.
+     * Merge variant used by the settings page: absent scalar fields and
+     * absent `script_keys` keep the existing profile's values. Absent
+     * `sni` resets to the default list (matching the old settings-page
+     * behavior, which always rebuilt from defaults — intentional, not a
+     * bug). Present `sni` (array or CSV string) and present `script_keys`
+     * (array or trimmed primitive string) replace, never merge.
      */
     fun mergeInto(profile: ProfileEntity, raw: String): ProfileEntity? {
         // See parse(): the null root is checked explicitly because Gson
