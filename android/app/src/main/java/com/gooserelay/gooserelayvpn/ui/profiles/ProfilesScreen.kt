@@ -3,7 +3,6 @@ package com.gooserelay.gooserelayvpn.ui.profiles
 import android.content.Context
 import android.net.Uri
 import android.util.Base64
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -73,7 +72,7 @@ import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
-import com.gooserelay.gooserelayvpn.util.ConfigGenerator
+import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 
 data class ScriptKeyEntry(
     val id: String = "",
@@ -82,7 +81,6 @@ data class ScriptKeyEntry(
 
 fun parseScriptKeysText(text: String): List<ScriptKeyEntry> {
     if (text.isBlank()) return emptyList()
-    Log.d("ProfilesScreen", "Parsing script keys text: '$text'")
     return text.split("\n")
         .filter { it.isNotBlank() }
         .map { line ->
@@ -90,11 +88,9 @@ fun parseScriptKeysText(text: String): List<ScriptKeyEntry> {
                 val parts = line.split("|")
                 val id = parts[0].trim()
                 val account = parts.getOrElse(1) { "" }.trim()
-                Log.d("ProfilesScreen", "  Parsed pipe: id='$id', account='$account'")
                 ScriptKeyEntry(id, account)
             } else {
                 val id = line.trim()
-                Log.d("ProfilesScreen", "  Parsed single: id='$id'")
                 ScriptKeyEntry(id, "")
             }
         }
@@ -106,71 +102,7 @@ fun scriptKeysToText(entries: List<ScriptKeyEntry>): String {
         .joinToString("\n") { entry ->
             if (entry.account.isNotBlank()) "${entry.id}|${entry.account}" else entry.id
         }
-    Log.d("ProfilesScreen", "scriptKeysToText output: '$result'")
     return result
-}
-
-fun parseProfileFromJson(raw: String, defaultName: String? = null): ProfileEntity? {
-    return try {
-        val root = Gson().fromJson(raw, JsonObject::class.java)
-        
-        // Check if it has at least one identifying part
-        if (!root.has("script_keys") && !root.has("tunnel_key")) return null
-
-        val name = root.get("name")?.asString ?: defaultName ?: "Imported"
-        val debugTiming = root.get("debug_timing")?.asBoolean ?: false
-        val socksHost = root.get("socks_host")?.asString ?: "127.0.0.1"
-        val socksPort = root.get("socks_port")?.asInt ?: 1080
-        val socksUser = root.get("socks_user")?.asString ?: ""
-        val socksPass = root.get("socks_pass")?.asString ?: ""
-        val googleHost = root.get("google_host")?.asString ?: "216.239.38.120"
-        val sniJson = when {
-            root.get("sni")?.isJsonArray == true -> Gson().toJson(root.getAsJsonArray("sni").mapNotNull { it.asString })
-            root.get("sni")?.isJsonPrimitive == true -> Gson().toJson(listOf(root.get("sni").asString))
-            else -> "[\"www.google.com\", \"mail.google.com\", \"accounts.google.com\"]"
-        }
-        val scriptKeysText = when {
-            root.get("script_keys")?.isJsonArray == true -> {
-                root.getAsJsonArray("script_keys").mapNotNull { element ->
-                    when {
-                        element.isJsonObject -> {
-                            val obj = element.asJsonObject
-                            val id = obj.get("id")?.asString?.trim()
-                            val account = obj.get("account")?.asString?.trim()
-                            if (id.isNullOrBlank()) null
-                            else if (account.isNullOrBlank()) id
-                            else "$id|$account"
-                        }
-                        element.isJsonPrimitive -> element.asString.trim()
-                        else -> null
-                    }
-                }.filter { it.isNotBlank() }.joinToString("\n")
-            }
-            root.get("script_keys")?.isJsonPrimitive == true -> root.get("script_keys").asString.trim()
-            else -> ""
-        }
-        val coalesceStepMs = root.get("coalesce_step_ms")?.asInt ?: 0
-        val idleSlotsPerBucket = root.get("idle_slots_per_bucket")?.asInt?.coerceIn(1, 3) ?: 2
-        val tunnelKey = root.get("tunnel_key")?.asString ?: ""
-
-        ProfileEntity(
-            name = name,
-            debugTiming = debugTiming,
-            socksHost = socksHost,
-            socksPort = socksPort,
-            socksUser = socksUser,
-            socksPass = socksPass,
-            googleHost = googleHost,
-            sniJson = sniJson,
-            scriptKeysText = scriptKeysText,
-            tunnelKey = tunnelKey,
-            coalesceStepMs = coalesceStepMs,
-            idleSlotsPerBucket = idleSlotsPerBucket,
-            remoteUrl = null
-        )
-    } catch (_: Exception) {
-        null
-    }
 }
 
 fun parseGooseRelayProtocol(raw: String): ProfileEntity? {
@@ -180,7 +112,7 @@ fun parseGooseRelayProtocol(raw: String): ProfileEntity? {
         val base64Content = trimmed.substring("goose-relay://".length)
         val decodedBytes = Base64.decode(base64Content, Base64.DEFAULT)
         val decodedString = String(decodedBytes)
-        parseProfileFromJson(decodedString)
+        ProfileJsonParser.parse(decodedString)
     } catch (_: Exception) {
         null
     }
@@ -224,18 +156,13 @@ fun ProfilesScreen(
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null || profileToExport == null) return@rememberLauncherForActivityResult
-        writeTextToUri(context, uri, ConfigGenerator.exportProfileJson(profileToExport!!))
-        profileToExport = null
+        viewModel.exportProfileToFile(profileToExport!!, uri, context.contentResolver) { profileToExport = null }
     }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val raw = readTextFromUri(context, uri)
         val fileName = getFileNameFromUri(context, uri)
-        val profile = viewModel.parseProfileFromJson(raw, fileName)
-        if (profile != null) {
-            viewModel.addProfile(profile)
-        } else {
+        viewModel.importProfileFromUri(uri, context.contentResolver, fileName) {
             showErrorDialog = "Import failed: invalid JSON format."
         }
     }
@@ -276,7 +203,7 @@ fun ProfilesScreen(
                                                 viewModel.importProfileFromUrl(text, context)
                                             }
                                             else -> {
-                                                val profile = parseGooseRelayProtocol(text) ?: parseProfileFromJson(text)
+                                                val profile = parseGooseRelayProtocol(text) ?: ProfileJsonParser.parse(text)
                                                 if (profile != null) {
                                                     viewModel.addProfile(profile)
                                                 } else {
@@ -341,7 +268,7 @@ fun ProfilesScreen(
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(profiles) { profile ->
+                items(profiles, key = { it.id }) { profile ->
                     Card(
                         onClick = { viewModel.selectProfile(profile.id) },
                         modifier = Modifier.fillMaxWidth(),
@@ -702,12 +629,4 @@ private fun ScriptKeysEditor(
             Text("Add script key")
         }
     }
-}
-
-private fun readTextFromUri(context: Context, uri: Uri): String {
-    return context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
-}
-
-private fun writeTextToUri(context: Context, uri: Uri, text: String) {
-    context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(text) }
 }
