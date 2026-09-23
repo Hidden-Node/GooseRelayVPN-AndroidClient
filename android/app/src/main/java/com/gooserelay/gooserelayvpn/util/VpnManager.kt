@@ -39,8 +39,7 @@ object VpnManager {
     private val _state = MutableStateFlow(VpnState.DISCONNECTED)
     val state: StateFlow<VpnState> = _state.asStateFlow()
 
-    private val _logs = MutableStateFlow<List<String>>(emptyList())
-    val logs: StateFlow<List<String>> = _logs.asStateFlow()
+    private val logBuffer = ArrayDeque<LogEntry>(MAX_LOG_LINES)
     private val _logEntries = MutableStateFlow<List<LogEntry>>(emptyList())
     val logEntries: StateFlow<List<LogEntry>> = _logEntries.asStateFlow()
 
@@ -120,6 +119,18 @@ object VpnManager {
         )
     )
 
+    private val candidateFormats: Map<TimestampCandidate, Pair<SimpleDateFormat, SimpleDateFormat>> =
+        TIMESTAMP_CANDIDATES.associateWith { c ->
+            val input = SimpleDateFormat(c.inputPattern, Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+                isLenient = false
+            }
+            val output = SimpleDateFormat(c.outputPattern, Locale.US).apply {
+                timeZone = TimeZone.getDefault()
+            }
+            Pair(input, output)
+        }
+
     fun updateState(newState: VpnState) {
         _state.value = newState
         if (newState == VpnState.CONNECTING) {
@@ -149,23 +160,29 @@ object VpnManager {
     private fun appendLogInternal(line: String, source: LogSource) {
         var normalizedLine = normalizeLogTimestampToLocal(line)
         if (!stampRegex.containsMatchIn(normalizedLine)) {
-            val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.US)
-            val now = dateFormat.format(Date())
-            normalizedLine = "$now $normalizedLine"
+            normalizedLine = "${nowStamp()} $normalizedLine"
         }
-        val current = _logEntries.value.toMutableList()
-        current.add(LogEntry(normalizedLine, source))
-        if (current.size > MAX_LOG_LINES) {
-            current.removeAt(0)
+        val entry = LogEntry(normalizedLine, source)
+        val snapshot: List<LogEntry>
+        synchronized(logBuffer) {
+            logBuffer.addLast(entry)
+            if (logBuffer.size > MAX_LOG_LINES) logBuffer.removeFirst()
+            snapshot = logBuffer.toList()
         }
-        _logEntries.value = current
-        _logs.value = current.map { it.line }
+        _logEntries.value = snapshot
         parseScanLine(normalizedLine)
     }
 
+    private fun nowStamp(): String =
+        synchronized(stampFormat) { stampFormat.format(Date()) }
+
+    private val stampFormat = SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.US)
+
     fun clearLogs() {
+        synchronized(logBuffer) {
+            logBuffer.clear()
+        }
         _logEntries.value = emptyList()
-        _logs.value = emptyList()
         _scanStatus.value = ScanStatus()
     }
 
@@ -291,7 +308,7 @@ object VpnManager {
             val match = candidate.regex.find(line) ?: continue
             val utcStamp = match.groupValues[1]
             val suffix = match.groupValues[2]
-            val localStamp = convertUtcToLocal(utcStamp, candidate.inputPattern, candidate.outputPattern) ?: continue
+            val localStamp = convertUtcToLocal(utcStamp, candidate) ?: continue
             return "$localStamp$suffix"
         }
         return line
@@ -299,19 +316,16 @@ object VpnManager {
 
     private fun convertUtcToLocal(
         utcValue: String,
-        inputPattern: String,
-        outputPattern: String
+        candidate: TimestampCandidate
     ): String? {
+        val formats = candidateFormats[candidate] ?: return null
+        val (input, output) = formats
         return try {
-            val input = SimpleDateFormat(inputPattern, Locale.US).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-                isLenient = false
+            val parsed: Date = synchronized(input) { input.parse(utcValue) } ?: return null
+            synchronized(output) {
+                output.timeZone = TimeZone.getDefault()
+                output.format(parsed)
             }
-            val parsed: Date = input.parse(utcValue) ?: return null
-            val output = SimpleDateFormat(outputPattern, Locale.US).apply {
-                timeZone = TimeZone.getDefault()
-            }
-            output.format(parsed)
         } catch (_: Exception) {
             null
         }

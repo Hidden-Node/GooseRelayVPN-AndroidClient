@@ -376,11 +376,6 @@ func StopTunBridge() {
 	tun.StopFakeDNSProxy()
 }
 
-// IsTunBridgeRunning returns true if bridge is active
-func IsTunBridgeRunning() bool {
-	return tun.IsFakeDNSProxyRunning()
-}
-
 // GetTunBandwidth returns upload and download bytes.
 func GetTunBandwidth() *Bandwidth {
 	bytesMu.RLock()
@@ -389,21 +384,6 @@ func GetTunBandwidth() *Bandwidth {
 		Up:   totalUploadBytes,
 		Down: totalDownloadBytes,
 	}
-}
-
-// GetDNSMapping returns the hostname for a fake IP
-func GetDNSMapping(fakeIP string) string {
-	return tun.GetDNSMapping(fakeIP)
-}
-
-// GetDNSMappingCount returns the number of DNS mappings
-func GetDNSMappingCount() int {
-	return tun.GetDNSMappingCount()
-}
-
-// GetTunVersion returns the TUN module version
-func GetTunVersion() string {
-	return tun.GetVersion()
 }
 
 type noopResolver struct{}

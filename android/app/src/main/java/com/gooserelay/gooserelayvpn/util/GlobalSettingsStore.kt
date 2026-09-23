@@ -15,7 +15,6 @@ enum class SplitTunnelMode { INCLUDE, EXCLUDE }
 
 data class GlobalSettings(
     val connectionMode: String = "VPN",
-    val allowLan: Boolean = false,
     val splitTunnelingEnabled: Boolean = false,
     val splitTunnelMode: SplitTunnelMode = SplitTunnelMode.INCLUDE,
     val splitPackagesCsv: String = "",
@@ -33,7 +32,6 @@ object GlobalSettingsStore {
     private val Context.dataStore by preferencesDataStore(name = "global_settings")
 
     private val KEY_CONNECTION_MODE = stringPreferencesKey("connection_mode")
-    private val KEY_ALLOW_LAN = booleanPreferencesKey("allow_lan")
     private val KEY_SPLIT_TUNNELING_ENABLED = booleanPreferencesKey("split_tunneling_enabled")
     private val KEY_SPLIT_TUNNEL_MODE = stringPreferencesKey("split_tunnel_mode")
     private val KEY_SPLIT_PACKAGES = stringPreferencesKey("split_packages")
@@ -61,7 +59,6 @@ object GlobalSettingsStore {
         Log.d(TAG, "Saving settings: connectionMode=${settings.connectionMode}, customDnsServers=${settings.customDnsServers}, fakeDnsEnabled=${settings.fakeDnsEnabled}")
         context.dataStore.edit { prefs ->
             prefs[KEY_CONNECTION_MODE] = settings.connectionMode
-            prefs[KEY_ALLOW_LAN] = settings.allowLan
             prefs[KEY_SPLIT_TUNNELING_ENABLED] = settings.splitTunnelingEnabled
             prefs[KEY_SPLIT_TUNNEL_MODE] = settings.splitTunnelMode.name
             prefs[KEY_SPLIT_PACKAGES] = settings.splitPackagesCsv
@@ -79,7 +76,6 @@ object GlobalSettingsStore {
     private fun Preferences.toModel(): GlobalSettings {
         return GlobalSettings(
             connectionMode = this[KEY_CONNECTION_MODE] ?: "VPN",
-            allowLan = this[KEY_ALLOW_LAN] ?: false,
             splitTunnelingEnabled = this[KEY_SPLIT_TUNNELING_ENABLED] ?: false,
             splitTunnelMode = runCatching { SplitTunnelMode.valueOf(this[KEY_SPLIT_TUNNEL_MODE] ?: "INCLUDE") }.getOrDefault(SplitTunnelMode.INCLUDE),
             splitPackagesCsv = this[KEY_SPLIT_PACKAGES] ?: "",
