@@ -175,6 +175,7 @@ func StartClient(configPath string, logPath string) error {
 
 	ln, lerr := net.Listen("tcp", cfg.ListenAddr)
 	if lerr != nil {
+		cancel() // stop carr.Run(ctx); otherwise the goroutine leaks holding creds
 		mu.Lock()
 		running = false
 		cancelFn = nil
@@ -209,15 +210,17 @@ func StartClient(configPath string, logPath string) error {
 }
 
 // dupFd duplicates a file descriptor so tun2socks and Android each own
-// independent copies.  When engine.Stop() internally closes the duplicated fd,
-// Android's ParcelFileDescriptor still has its original fd to close safely —
-// no double-close SIGSEGV.
-func dupFd(fd int) int {
+// independent copies. When engine.Stop() internally closes the duplicated
+// fd, Android's ParcelFileDescriptor still has its original fd to close
+// safely — no double-close SIGSEGV. Returns ok=false when Dup fails; the
+// caller MUST abort startup in that case rather than proceed with the
+// borrowed fd (double-close on stop).
+func dupFd(fd int) (int, bool) {
 	dup, err := syscall.Dup(fd)
 	if err != nil {
-		return fd
+		return -1, false
 	}
-	return dup
+	return dup, true
 }
 
 func StopClient() {
@@ -261,8 +264,11 @@ func IsRunning() bool {
 	return running
 }
 
-func StartTun(fd int64, proxyAddr string) {
-	safeFd := dupFd(int(fd))
+func StartTun(fd int64, proxyAddr string) error {
+	safeFd, ok := dupFd(int(fd))
+	if !ok {
+		return fmt.Errorf("tun fd duplication failed (fd exhaustion); refusing to start TUN to avoid double-close")
+	}
 
 	key := &engine.Key{
 		Proxy:  "socks5://" + proxyAddr,
@@ -285,6 +291,8 @@ func StartTun(fd int64, proxyAddr string) {
 	mu.Lock()
 	tunActive = true
 	mu.Unlock()
+
+	return nil
 }
 
 func StopTun() {
@@ -317,7 +325,10 @@ func StartTunBridge(tunFd int64, mtu int64, socksAddr, socksUser, socksPass stri
 		return err
 	}
 
-	safeFd := dupFd(int(tunFd))
+	safeFd, ok := dupFd(int(tunFd))
+	if !ok {
+		return fmt.Errorf("tun fd duplication failed (fd exhaustion); refusing to start TUN to avoid double-close")
+	}
 
 	key := &engine.Key{
 		Proxy:  "socks5://" + proxyAddr,
