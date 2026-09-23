@@ -366,23 +366,11 @@ class GooseRelayVpnService : VpnService() {
                     try {
                         VpnManager.appendLog("Starting Go TUN bridge with DNS interception...")
                         
-                        // TUN module is included in mobile package
-                        val tunClass = Class.forName("mobile.Mobile")
-                        val startMethod = tunClass.getMethod(
-                            "startTunBridge",
-                            Long::class.java,
-                            Long::class.java,
-                            String::class.java,
-                            String::class.java,
-                            String::class.java,
-                        )
-                        
-                        // Start TUN bridge: fd, mtu, socksAddr, socksUser, socksPass
+                        // Start TUN bridge: fd, mtu, socksAddr, socksUser, socksPass.
                         // The Go core's SOCKS5 server enforces user/pass auth when
                         // both fields are non-empty; we forward them so the FakeDNS
                         // proxy can negotiate through it.
-                        startMethod.invoke(
-                            null,
+                        mobile.Mobile.startTunBridge(
                             vpnInterface!!.fd.toLong(),
                             1500L,
                             "127.0.0.1:$socksPort",

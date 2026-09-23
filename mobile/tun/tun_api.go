@@ -6,10 +6,6 @@ import (
 	"sync"
 )
 
-func GetVersion() string {
-	return "1.0.0-fakedns-proxy"
-}
-
 var (
 	bridgeMu     sync.Mutex
 	activeProxy  *FakeDNSProxy
@@ -57,46 +53,4 @@ func StopFakeDNSProxy() {
 	activeProxy = nil
 	sharedDnsMap = nil
 	log.Printf("[TUN-API] FakeDNS proxy stopped")
-}
-
-func IsFakeDNSProxyRunning() bool {
-	bridgeMu.Lock()
-	defer bridgeMu.Unlock()
-	return activeProxy != nil
-}
-
-func GetTunBandwidth() (up int64, down int64) {
-	// tun2socks engine handles bandwidth stats, this is dummy now
-	return 0, 0
-}
-
-func GetDNSMapping(fakeIP string) string {
-	bridgeMu.Lock()
-	defer bridgeMu.Unlock()
-	
-	if sharedDnsMap == nil {
-		return ""
-	}
-	
-	hostname, ok := sharedDnsMap.GetHostname(fakeIP)
-	if !ok {
-		return ""
-	}
-	
-	return hostname
-}
-
-func GetDNSMappingCount() int {
-	bridgeMu.Lock()
-	defer bridgeMu.Unlock()
-	
-	if sharedDnsMap == nil {
-		return 0
-	}
-	
-	sharedDnsMap.mu.RLock()
-	count := len(sharedDnsMap.hostnameToIP)
-	sharedDnsMap.mu.RUnlock()
-	
-	return count
 }
