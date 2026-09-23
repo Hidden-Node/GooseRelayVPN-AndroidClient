@@ -107,7 +107,9 @@ class GooseRelayVpnService : VpnService() {
                 startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_disconnected)))
             }.onFailure { Log.w(TAG, "startForeground on restart failed", it) }
             VpnManager.updateState(VpnManager.VpnState.DISCONNECTED)
-            stopSelf()
+            // startId-qualified: stop only if no newer start (e.g. a real
+            // ACTION_CONNECT) arrived after this zombie restart.
+            stopSelf(startId)
             return START_NOT_STICKY
         }
         when (intent.action) {
