@@ -1,11 +1,14 @@
 package com.gooserelay.gooserelayvpn.ui.profiles
 
+import android.content.ContentResolver
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
+import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -158,6 +161,25 @@ class ProfilesViewModel @Inject constructor(
 
     fun clearUpdateMessage() {
         _updateMessage.value = null
+    }
+
+    fun importProfileFromUri(uri: Uri, resolver: ContentResolver, defaultName: String?, onInvalid: () -> Unit) {
+        viewModelScope.launch {
+            val profile = withContext(Dispatchers.IO) {
+                val raw = resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (raw.isBlank()) null else parseProfileFromJson(raw, defaultName)
+            }
+            if (profile != null) addProfile(profile) else onInvalid()
+        }
+    }
+
+    fun exportProfileToFile(profile: ProfileEntity, uri: Uri, contentResolver: ContentResolver, onDone: () -> Unit) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(ConfigGenerator.exportProfileJson(profile)) }
+            }
+            onDone()
+        }
     }
 
     fun parseProfileFromJson(raw: String, defaultName: String? = null, remoteUrl: String? = null): ProfileEntity? =

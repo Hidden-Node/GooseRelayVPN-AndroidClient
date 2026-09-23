@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
@@ -31,6 +32,9 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SettingsScreen(
@@ -95,9 +99,13 @@ fun SettingsScreen(
         tunnelKey = updated.tunnelKey
     }
 
+    val ioScope = rememberCoroutineScope()
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        applyImportedProfile(readTextFromUri(context, uri))
+        ioScope.launch {
+            val raw = withContext(Dispatchers.IO) { readTextFromUri(context, uri) }
+            applyImportedProfile(raw)
+        }
     }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -113,7 +121,11 @@ fun SettingsScreen(
             scriptKeysText = scriptKeys,
             tunnelKey = tunnelKey
         )
-        writeTextToUri(context, uri, viewModel.exportConfigJson(updated))
+        ioScope.launch {
+            withContext(Dispatchers.IO) {
+                writeTextToUri(context, uri, viewModel.exportConfigJson(updated))
+            }
+        }
     }
 
     Scaffold(

@@ -18,7 +18,9 @@ import com.gooserelay.gooserelayvpn.ui.navigation.AppNavigation
 import com.gooserelay.gooserelayvpn.ui.theme.GooseRelayVPNTheme
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -73,16 +75,11 @@ class MainActivity : ComponentActivity() {
         }
 
         lifecycleScope.launch {
-            val content = readTextFromUri(uri)
-            if (content.isBlank()) {
-                Toast.makeText(
-                    this@MainActivity,
-                    R.string.profiles_invalid_json_msg,
-                    Toast.LENGTH_LONG
-                ).show()
-                return@launch
+            val imported = withContext(Dispatchers.IO) {
+                val content = readTextFromUri(uri)
+                if (content.isBlank()) return@withContext null
+                parseImportedProfile(uri, content)
             }
-            val imported = parseImportedProfile(uri, content)
             if (imported == null) {
                 Toast.makeText(
                     this@MainActivity,
@@ -92,7 +89,7 @@ class MainActivity : ComponentActivity() {
                 return@launch
             }
             lastHandledImportUri = uriToken
-            val id = profileRepository.insertProfile(imported)
+            val id = withContext(Dispatchers.IO) { profileRepository.insertProfile(imported) }
             profileRepository.setSelectedProfile(id)
             Toast.makeText(
                 this@MainActivity,

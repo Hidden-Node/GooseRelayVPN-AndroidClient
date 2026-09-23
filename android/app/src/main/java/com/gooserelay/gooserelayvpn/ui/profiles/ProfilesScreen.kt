@@ -72,7 +72,6 @@ import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
-import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 
 data class ScriptKeyEntry(
@@ -157,18 +156,13 @@ fun ProfilesScreen(
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null || profileToExport == null) return@rememberLauncherForActivityResult
-        writeTextToUri(context, uri, ConfigGenerator.exportProfileJson(profileToExport!!))
-        profileToExport = null
+        viewModel.exportProfileToFile(profileToExport!!, uri, context.contentResolver) { profileToExport = null }
     }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val raw = readTextFromUri(context, uri)
         val fileName = getFileNameFromUri(context, uri)
-        val profile = viewModel.parseProfileFromJson(raw, fileName)
-        if (profile != null) {
-            viewModel.addProfile(profile)
-        } else {
+        viewModel.importProfileFromUri(uri, context.contentResolver, fileName) {
             showErrorDialog = "Import failed: invalid JSON format."
         }
     }
@@ -635,12 +629,4 @@ private fun ScriptKeysEditor(
             Text("Add script key")
         }
     }
-}
-
-private fun readTextFromUri(context: Context, uri: Uri): String {
-    return context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
-}
-
-private fun writeTextToUri(context: Context, uri: Uri, text: String) {
-    context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(text) }
 }
