@@ -19,6 +19,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -140,9 +141,11 @@ fun SettingsScreen(
             }
         }
 
-        LaunchedEffect(debugTiming, socksHost, socksPort, socksUser, socksPass, googleHost, sniText, scriptKeys, tunnelKey) {
-            if ((socksUser.isBlank()) != (socksPass.isBlank())) return@LaunchedEffect
-            delay(500) // debounce: one Room write per typing pause, not per keystroke
+        // Flush the pending autosave immediately (used by the debounced
+        // effect below and by the dispose flush). Reads the latest field
+        // states, so trailing edits are never lost.
+        fun flushAutosave() {
+            if ((socksUser.isBlank()) != (socksPass.isBlank())) return
             val portInt = socksPort.toIntOrNull()?.coerceIn(1, 65535)
             val updated = profile.copy(
                 debugTiming = debugTiming,
@@ -158,6 +161,19 @@ fun SettingsScreen(
             if (updated != profile) {
                 viewModel.saveProfile(updated)
             }
+        }
+
+        LaunchedEffect(debugTiming, socksHost, socksPort, socksUser, socksPass, googleHost, sniText, scriptKeys, tunnelKey) {
+            if ((socksUser.isBlank()) != (socksPass.isBlank())) return@LaunchedEffect
+            delay(500) // debounce: one Room write per typing pause, not per keystroke
+            flushAutosave()
+        }
+
+        // If the user leaves before the debounce fires, persist the
+        // trailing edits exactly once. (If the debounce already fired,
+        // updated == profile and this is a no-op.)
+        DisposableEffect(Unit) {
+            onDispose { flushAutosave() }
         }
 
         Column(
