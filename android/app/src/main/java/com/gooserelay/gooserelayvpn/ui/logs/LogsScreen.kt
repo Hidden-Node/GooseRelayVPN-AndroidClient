@@ -105,7 +105,12 @@ fun LogsScreen(onBack: () -> Unit) {
             LogFilter.ANDROID -> logEntries.filter { it.source == VpnManager.LogSource.ANDROID }
         }
     }
-    val uiLogItems = remember(filteredLogs) { buildUiLogItems(filteredLogs) }
+    // Parse each raw entry once; on new emissions only the tail is new
+    // (the buffer is append-only + head-trim), so reuse prior parses.
+    val parsedCache = remember { mutableMapOf<VpnManager.LogEntry, ParsedLogFields>() }
+    val uiLogItems = remember(filteredLogs) {
+        buildUiLogItems(filteredLogs, parsedCache)
+    }
     val stats = remember(uiLogItems) { buildLogStats(uiLogItems) }
 
     val listState = rememberLazyListState()
@@ -386,8 +391,14 @@ private fun buildLogStats(items: List<UiLogItem>): LogStats {
     return LogStats(total = items.size, errors = errors, warnings = warnings)
 }
 
-private fun buildUiLogItems(entries: List<VpnManager.LogEntry>): List<UiLogItem> {
-    if (entries.isEmpty()) return emptyList()
+private fun buildUiLogItems(
+    entries: List<VpnManager.LogEntry>,
+    parsedCache: MutableMap<VpnManager.LogEntry, ParsedLogFields>
+): List<UiLogItem> {
+    if (entries.isEmpty()) {
+        parsedCache.clear()
+        return emptyList()
+    }
 
     val result = mutableListOf<UiLogItem>()
 
@@ -419,7 +430,7 @@ private fun buildUiLogItems(entries: List<VpnManager.LogEntry>): List<UiLogItem>
     }
 
     entries.forEachIndexed { index, entry ->
-        val parsed = parseLine(entry.line)
+        val parsed = parsedCache.getOrPut(entry) { parseLine(entry.line) }
         val startsNewBlock = parsed.timestamp != null || parsed.explicitSeverity || pendingSource == null
 
         if (startsNewBlock) {
@@ -436,6 +447,7 @@ private fun buildUiLogItems(entries: List<VpnManager.LogEntry>): List<UiLogItem>
     }
 
     flushPending()
+    parsedCache.keys.retainAll(entries.toSet())
     return result
 }
 
