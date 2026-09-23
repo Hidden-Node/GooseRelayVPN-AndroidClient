@@ -42,6 +42,8 @@ class GooseRelayVpnService : VpnService() {
         private const val TAG = "GooseRelayVPN"
         private const val NOTIFICATION_ID = 1
         private const val DEFAULT_SOCKS_PORT = 1080
+        private const val MAX_SHARING_CONNECTIONS = 64
+        private const val SHARING_REJECT_LOG_INTERVAL_MS = 10_000L
         private const val SOCKS_STARTUP_TIMEOUT_MS = 30 * 60 * 1000L
         private const val SOCKS_POLL_INTERVAL_MS = 500L
 
@@ -72,6 +74,10 @@ class GooseRelayVpnService : VpnService() {
     private var sharingSocksServer: java.net.ServerSocket? = null
     private var sharingHttpServer: java.net.ServerSocket? = null
     private val sharingConnections = java.util.Collections.synchronizedSet(mutableSetOf<java.net.Socket>())
+    // Throttle bookkeeping for the reject log line below. Guarded by
+    // synchronizing on sharingConnections (same monitor the set uses).
+    private var lastSharingRejectLogMs = 0L
+    private var suppressedSharingRejects = 0
     private val sharingStartStopMutex = kotlinx.coroutines.sync.Mutex()
     private val sharingGeneration = java.util.concurrent.atomic.AtomicInteger(0)
     private var logTailJob: Job? = null
@@ -96,7 +102,22 @@ class GooseRelayVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        if (intent == null) {
+            // Sticky restart after a system kill: no action to take (no
+            // auto-reconnect by design). The service is now "started", so it
+            // must enter the foreground once to avoid
+            // ForegroundServiceDidNotStartInTimeException on Android 12+,
+            // then stop cleanly.
+            runCatching {
+                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_disconnected)))
+            }.onFailure { Log.w(TAG, "startForeground on restart failed", it) }
+            VpnManager.updateState(VpnManager.VpnState.DISCONNECTED)
+            // startId-qualified: stop only if no newer start (e.g. a real
+            // ACTION_CONNECT) arrived after this zombie restart.
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        when (intent.action) {
             ACTION_CONNECT -> {
                 val profileId = intent.getLongExtra(EXTRA_PROFILE_ID, -1)
                 if (profileId > 0) {
@@ -112,6 +133,10 @@ class GooseRelayVpnService : VpnService() {
 
     private fun startVpn(profileId: Long) {
         connectJob?.cancel()
+        // A new session is starting on this instance: re-enable the network
+        // callback (stopVpn() left isStopping=true on purpose so onDestroy
+        // skips double-cleanup; a same-instance reconnect must clear it).
+        isStopping = false
         connectJob = serviceScope.launch {
             try {
                 VpnManager.updateState(VpnManager.VpnState.CONNECTING)
@@ -743,6 +768,27 @@ class GooseRelayVpnService : VpnService() {
         }
     }
 
+    // Rejects can arrive in bursts (hostile or buggy LAN client); log at
+    // most one line per interval so the reject line can't evict useful
+    // entries from the 2000-line log ring. Rejection itself stays
+    // per-connection and unconditional — only the log is throttled.
+    private fun logSharingRejectThrottled() {
+        synchronized(sharingConnections) {
+            val now = System.currentTimeMillis()
+            if (now - lastSharingRejectLogMs < SHARING_REJECT_LOG_INTERVAL_MS) {
+                suppressedSharingRejects++
+                return
+            }
+            lastSharingRejectLogMs = now
+            val suppressed = suppressedSharingRejects
+            suppressedSharingRejects = 0
+            VpnManager.appendLog(
+                "Sharing connection limit reached; rejecting client" +
+                    if (suppressed > 0) " ($suppressed similar rejects suppressed)" else ""
+            )
+        }
+    }
+
     private suspend fun startInternetSharing(
         socksPort: Int,
         httpPort: Int,
@@ -782,6 +828,11 @@ class GooseRelayVpnService : VpnService() {
                     while (isActive) {
                         val client = server.accept()
                         if (!isActive) { runCatching { client.close() }; break }
+                        if (synchronized(sharingConnections) { sharingConnections.size >= MAX_SHARING_CONNECTIONS }) {
+                            logSharingRejectThrottled()
+                            runCatching { client.close() }
+                            continue
+                        }
                         launch(Dispatchers.IO) {
                             sharingConnections.add(client)
                             try {
@@ -813,6 +864,11 @@ class GooseRelayVpnService : VpnService() {
                     while (isActive) {
                         val client = server.accept()
                         if (!isActive) { runCatching { client.close() }; break }
+                        if (synchronized(sharingConnections) { sharingConnections.size >= MAX_SHARING_CONNECTIONS }) {
+                            logSharingRejectThrottled()
+                            runCatching { client.close() }
+                            continue
+                        }
                         launch(Dispatchers.IO) {
                             sharingConnections.add(client)
                             try {
@@ -930,7 +986,10 @@ class GooseRelayVpnService : VpnService() {
                 output.write(byteArrayOf(0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
                 return
             }
-            upstream.soTimeout = 30000
+            // Handshake is done: idle timeouts off. A quiet tunnel (SSH,
+            // WebSocket) must not be killed by a read timeout.
+            upstream.soTimeout = 0
+            client.soTimeout = 0
             // 0x05 0x00 0x00 0x01 + 4-byte bind addr + 2-byte bind port
             output.write(byteArrayOf(0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
 
@@ -1003,7 +1062,7 @@ class GooseRelayVpnService : VpnService() {
                     output.write("HTTP/1.1 502 Bad Gateway\r\n\r\n"); output.flush()
                     return
                 }
-                upstream.soTimeout = 30000
+                upstream.soTimeout = 0
                 client.soTimeout = 0
                 output.write("HTTP/1.1 200 Connection Established\r\n\r\n")
                 output.flush()
@@ -1021,7 +1080,7 @@ class GooseRelayVpnService : VpnService() {
                     output.write("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n"); output.flush()
                     return
                 }
-                upstream.soTimeout = 30000
+                upstream.soTimeout = 0
                 client.soTimeout = 0
                 // Re-emit the request with a relative path (origin-form) to
                 // the tunnel, then bridge; the tunnel's SOCKS5 target is
