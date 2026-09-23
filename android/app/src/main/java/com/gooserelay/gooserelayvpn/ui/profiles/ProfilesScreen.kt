@@ -268,7 +268,7 @@ fun ProfilesScreen(
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(profiles) { profile ->
+                items(profiles, key = { it.id }) { profile ->
                     Card(
                         onClick = { viewModel.selectProfile(profile.id) },
                         modifier = Modifier.fillMaxWidth(),

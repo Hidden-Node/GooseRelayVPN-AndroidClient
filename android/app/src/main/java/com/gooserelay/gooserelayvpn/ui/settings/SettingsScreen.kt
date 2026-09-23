@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -141,6 +142,7 @@ fun SettingsScreen(
 
         LaunchedEffect(debugTiming, socksHost, socksPort, socksUser, socksPass, googleHost, sniText, scriptKeys, tunnelKey) {
             if ((socksUser.isBlank()) != (socksPass.isBlank())) return@LaunchedEffect
+            delay(500) // debounce: one Room write per typing pause, not per keystroke
             val portInt = socksPort.toIntOrNull()?.coerceIn(1, 65535)
             val updated = profile.copy(
                 debugTiming = debugTiming,
