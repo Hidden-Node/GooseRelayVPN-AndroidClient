@@ -5,7 +5,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 
 @Composable
@@ -25,23 +24,6 @@ fun MdvFilterChip(
             selectedLabelColor = MdvColor.Primary,
             containerColor = MdvColor.SurfaceHigh,
             labelColor = MdvColor.OnSurfaceVariant
-        )
-    )
-}
-
-@Composable
-fun MdvStatusChip(
-    label: String,
-    container: Color = MdvColor.PrimaryContainer.copy(alpha = 0.16f),
-    contentColor: Color = MdvColor.Primary
-) {
-    androidx.compose.material3.AssistChip(
-        onClick = {},
-        enabled = false,
-        label = { Text(label, color = contentColor) },
-        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-            disabledContainerColor = container,
-            disabledLabelColor = contentColor
         )
     )
 }
