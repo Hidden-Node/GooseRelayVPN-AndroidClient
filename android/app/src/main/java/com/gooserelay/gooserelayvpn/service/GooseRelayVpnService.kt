@@ -126,6 +126,10 @@ class GooseRelayVpnService : VpnService() {
 
     private fun startVpn(profileId: Long) {
         connectJob?.cancel()
+        // A new session is starting on this instance: re-enable the network
+        // callback (stopVpn() left isStopping=true on purpose so onDestroy
+        // skips double-cleanup; a same-instance reconnect must clear it).
+        isStopping = false
         connectJob = serviceScope.launch {
             try {
                 VpnManager.updateState(VpnManager.VpnState.CONNECTING)
