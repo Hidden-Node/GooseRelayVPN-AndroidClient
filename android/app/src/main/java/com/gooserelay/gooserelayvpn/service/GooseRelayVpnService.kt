@@ -43,6 +43,7 @@ class GooseRelayVpnService : VpnService() {
         private const val NOTIFICATION_ID = 1
         private const val DEFAULT_SOCKS_PORT = 1080
         private const val MAX_SHARING_CONNECTIONS = 64
+        private const val SHARING_REJECT_LOG_INTERVAL_MS = 10_000L
         private const val SOCKS_STARTUP_TIMEOUT_MS = 30 * 60 * 1000L
         private const val SOCKS_POLL_INTERVAL_MS = 500L
 
@@ -73,6 +74,10 @@ class GooseRelayVpnService : VpnService() {
     private var sharingSocksServer: java.net.ServerSocket? = null
     private var sharingHttpServer: java.net.ServerSocket? = null
     private val sharingConnections = java.util.Collections.synchronizedSet(mutableSetOf<java.net.Socket>())
+    // Throttle bookkeeping for the reject log line below. Guarded by
+    // synchronizing on sharingConnections (same monitor the set uses).
+    private var lastSharingRejectLogMs = 0L
+    private var suppressedSharingRejects = 0
     private val sharingStartStopMutex = kotlinx.coroutines.sync.Mutex()
     private val sharingGeneration = java.util.concurrent.atomic.AtomicInteger(0)
     private var logTailJob: Job? = null
@@ -763,6 +768,27 @@ class GooseRelayVpnService : VpnService() {
         }
     }
 
+    // Rejects can arrive in bursts (hostile or buggy LAN client); log at
+    // most one line per interval so the reject line can't evict useful
+    // entries from the 2000-line log ring. Rejection itself stays
+    // per-connection and unconditional — only the log is throttled.
+    private fun logSharingRejectThrottled() {
+        synchronized(sharingConnections) {
+            val now = System.currentTimeMillis()
+            if (now - lastSharingRejectLogMs < SHARING_REJECT_LOG_INTERVAL_MS) {
+                suppressedSharingRejects++
+                return
+            }
+            lastSharingRejectLogMs = now
+            val suppressed = suppressedSharingRejects
+            suppressedSharingRejects = 0
+            VpnManager.appendLog(
+                "Sharing connection limit reached; rejecting client" +
+                    if (suppressed > 0) " ($suppressed similar rejects suppressed)" else ""
+            )
+        }
+    }
+
     private suspend fun startInternetSharing(
         socksPort: Int,
         httpPort: Int,
@@ -803,7 +829,7 @@ class GooseRelayVpnService : VpnService() {
                         val client = server.accept()
                         if (!isActive) { runCatching { client.close() }; break }
                         if (synchronized(sharingConnections) { sharingConnections.size >= MAX_SHARING_CONNECTIONS }) {
-                            VpnManager.appendLog("Sharing connection limit reached; rejecting client")
+                            logSharingRejectThrottled()
                             runCatching { client.close() }
                             continue
                         }
@@ -839,7 +865,7 @@ class GooseRelayVpnService : VpnService() {
                         val client = server.accept()
                         if (!isActive) { runCatching { client.close() }; break }
                         if (synchronized(sharingConnections) { sharingConnections.size >= MAX_SHARING_CONNECTIONS }) {
-                            VpnManager.appendLog("Sharing connection limit reached; rejecting client")
+                            logSharingRejectThrottled()
                             runCatching { client.close() }
                             continue
                         }
