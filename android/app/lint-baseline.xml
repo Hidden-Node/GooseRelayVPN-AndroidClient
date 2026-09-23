@@ -426,7 +426,7 @@
         errorLine2="            ~~~~~~~~~">
         <location
             file="src/main/java/com/gooserelay/gooserelayvpn/service/GooseRelayVpnService.kt"
-            line="707"
+            line="713"
             column="13"/>
     </issue>
 
@@ -437,7 +437,7 @@
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/gooserelay/gooserelayvpn/service/GooseRelayVpnService.kt"
-            line="289"
+            line="307"
             column="21"/>
     </issue>
 
@@ -467,6 +467,28 @@
         <location
             file="src/main/res/values/strings.xml"
             line="5"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.string.action_hide` appears to be unused"
+        errorLine1="    &lt;string name=&quot;action_hide&quot;>Hide&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="7"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.string.action_show` appears to be unused"
+        errorLine1="    &lt;string name=&quot;action_show&quot;>Show&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="8"
             column="13"/>
     </issue>
 
@@ -995,17 +1017,6 @@
         <location
             file="src/main/res/values/strings.xml"
             line="100"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="UnusedResources"
-        message="The resource `R.string.notification_disconnected` appears to be unused"
-        errorLine1="    &lt;string name=&quot;notification_disconnected&quot;>VPN disconnected&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="147"
             column="13"/>
     </issue>
 
