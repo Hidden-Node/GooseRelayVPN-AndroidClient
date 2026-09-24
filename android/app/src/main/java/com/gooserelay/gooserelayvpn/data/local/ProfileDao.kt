@@ -23,9 +23,6 @@ interface ProfileDao {
     @Query("SELECT * FROM profiles ORDER BY createdAt DESC LIMIT 1")
     suspend fun getNewestProfile(): ProfileEntity?
 
-    @Query("SELECT * FROM profiles")
-    suspend fun getAllOnce(): List<ProfileEntity>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProfile(profile: ProfileEntity): Long
 

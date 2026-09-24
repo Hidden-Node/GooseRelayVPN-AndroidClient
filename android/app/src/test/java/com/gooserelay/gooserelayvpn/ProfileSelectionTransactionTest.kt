@@ -17,7 +17,6 @@ private class FakeProfileDao : ProfileDao {
     override suspend fun getSelectedProfile() = rows.values.firstOrNull { it.isSelected }
     override fun getSelectedProfileFlow() = throw UnsupportedOperationException()
     override suspend fun getNewestProfile() = rows.values.maxByOrNull { it.createdAt }
-    override suspend fun getAllOnce() = rows.values.toList()
     override suspend fun insertProfile(profile: ProfileEntity): Long {
         val id = nextId++
         rows[id] = profile.copy(id = id)
