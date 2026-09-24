@@ -86,8 +86,6 @@ class GooseRelayVpnService : VpnService() {
     private var keepaliveJob: Job? = null
     private var isStopping = false
     @Volatile
-    private var tunBridgeActive = false
-    @Volatile
     private var socksAuthWarningShown = false
     @Volatile
     private var sessionBusyWarningShown = false
@@ -385,7 +383,6 @@ class GooseRelayVpnService : VpnService() {
                             profile.socksPass,
                         )
                         
-                        tunBridgeActive = true
                         VpnManager.appendLog("Go TUN bridge started (DNS will be resolved remotely)")
                     } catch (e: Exception) {
                         VpnManager.appendLog("Failed to start Go TUN bridge: ${e.message}")
@@ -457,7 +454,6 @@ class GooseRelayVpnService : VpnService() {
             try {
                 connectJob?.cancel()
                 VpnManager.appendLog("Stopping VPN...")
-                tunBridgeActive = false
 
                 // Stop everything in Go layer via a single stopClient() call.
                 // Go's StopClient() internally handles StopTun/StopTunBridge
