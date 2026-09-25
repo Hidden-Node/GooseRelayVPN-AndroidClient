@@ -248,13 +248,13 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 MdvFilterChip(
                                     selected = draft.splitTunnelMode == SplitTunnelMode.INCLUDE,
                                     onClick = { draft = draft.copy(splitTunnelMode = SplitTunnelMode.INCLUDE) },
-                                    label = "Proxy Only",
+                                    label = stringResource(R.string.split_tunnel_mode_include),
                                     modifier = Modifier.weight(1f)
                                 )
                                 MdvFilterChip(
                                     selected = draft.splitTunnelMode == SplitTunnelMode.EXCLUDE,
                                     onClick = { draft = draft.copy(splitTunnelMode = SplitTunnelMode.EXCLUDE) },
-                                    label = "Bypass Only",
+                                    label = stringResource(R.string.split_tunnel_mode_exclude),
                                     modifier = Modifier.weight(1f)
                                 )
                             }
