@@ -516,7 +516,11 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                     ) {
                         Text(stringResource(R.string.split_tunnel_dialog_title), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            stringResource(R.string.split_tunnel_dialog_desc),
+                            stringResource(
+                                if (draft.splitTunnelMode == SplitTunnelMode.INCLUDE)
+                                    R.string.split_tunnel_dialog_desc_include
+                                else R.string.split_tunnel_dialog_desc_exclude
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MdvColor.OnSurfaceVariant
                         )
