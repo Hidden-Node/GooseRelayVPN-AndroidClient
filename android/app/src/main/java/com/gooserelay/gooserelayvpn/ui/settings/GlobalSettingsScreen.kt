@@ -248,13 +248,13 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 MdvFilterChip(
                                     selected = draft.splitTunnelMode == SplitTunnelMode.INCLUDE,
                                     onClick = { draft = draft.copy(splitTunnelMode = SplitTunnelMode.INCLUDE) },
-                                    label = "Proxy Only",
+                                    label = stringResource(R.string.split_tunnel_mode_include),
                                     modifier = Modifier.weight(1f)
                                 )
                                 MdvFilterChip(
                                     selected = draft.splitTunnelMode == SplitTunnelMode.EXCLUDE,
                                     onClick = { draft = draft.copy(splitTunnelMode = SplitTunnelMode.EXCLUDE) },
-                                    label = "Bypass Only",
+                                    label = stringResource(R.string.split_tunnel_mode_exclude),
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -277,6 +277,13 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MdvColor.OnSurfaceVariant
                                     )
+                                    if (draft.splitTunnelingEnabled && splitPackagesCount == 0) {
+                                        Text(
+                                            stringResource(R.string.split_tunnel_empty_apps_warning),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MdvColor.Error
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -516,7 +523,11 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                     ) {
                         Text(stringResource(R.string.split_tunnel_dialog_title), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            stringResource(R.string.split_tunnel_dialog_desc),
+                            stringResource(
+                                if (draft.splitTunnelMode == SplitTunnelMode.INCLUDE)
+                                    R.string.split_tunnel_dialog_desc_include
+                                else R.string.split_tunnel_dialog_desc_exclude
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MdvColor.OnSurfaceVariant
                         )

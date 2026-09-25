@@ -23,7 +23,11 @@
     <string name="split_tunnel_apps_title">Split Tunnel Apps</string>
     <string name="split_tunnel_apps_selected_count">%1$d selected apps - tap to choose</string>
     <string name="split_tunnel_dialog_title">Select Split-Tunnel Apps</string>
-    <string name="split_tunnel_dialog_desc">Choose apps that should use VPN tunnel</string>
+    <string name="split_tunnel_mode_include">Only these apps</string>
+    <string name="split_tunnel_mode_exclude">All except these</string>
+    <string name="split_tunnel_dialog_desc_include">Choose apps that should use the VPN tunnel</string>
+    <string name="split_tunnel_dialog_desc_exclude">Choose apps that should connect directly (bypass the VPN)</string>
+    <string name="split_tunnel_empty_apps_warning">Split tunneling is on but no apps are selected — behaving as off</string>
     <string name="split_tunnel_selected_count">Selected %1$d</string>
     <string name="split_tunnel_available_count">Available %1$d</string>
     <string name="split_tunnel_search_selected">Search selected apps</string>
