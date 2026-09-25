@@ -277,6 +277,13 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MdvColor.OnSurfaceVariant
                                     )
+                                    if (draft.splitTunnelingEnabled && splitPackagesCount == 0) {
+                                        Text(
+                                            stringResource(R.string.split_tunnel_empty_apps_warning),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MdvColor.Error
+                                        )
+                                    }
                                 }
                             }
                         }
