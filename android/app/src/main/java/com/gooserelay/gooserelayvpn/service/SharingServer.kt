@@ -5,6 +5,8 @@ import kotlinx.coroutines.*
 
 internal object SharingServer {
 
+    private const val PUMP_BUFFER_SIZE = 32 * 1024
+
     internal suspend fun handleSharingSocksClient(client: java.net.Socket, coreSocksPort: Int, username: String, password: String) {
         var upstream: java.net.Socket? = null
         try {
@@ -199,7 +201,7 @@ internal object SharingServer {
 
     private suspend fun bridgeBidirectional(client: java.net.Socket, upstream: java.net.Socket, clientInput: java.io.InputStream? = null) = coroutineScope {
         val upToClient = launch(Dispatchers.IO) {
-            val buffer = ByteArray(8192)
+            val buffer = ByteArray(PUMP_BUFFER_SIZE)
             try {
                 val input = upstream.getInputStream()
                 val output = client.getOutputStream()
@@ -207,16 +209,16 @@ internal object SharingServer {
                     val read = input.read(buffer)
                     if (read <= 0) break
                     output.write(buffer, 0, read)
-                    output.flush()
                 }
             } catch (_: Exception) {
             } finally {
+                runCatching { client.getOutputStream().flush() }
                 runCatching { client.shutdownOutput() }
             }
         }
 
         val clientToUp = launch(Dispatchers.IO) {
-            val buffer = ByteArray(8192)
+            val buffer = ByteArray(PUMP_BUFFER_SIZE)
             try {
                 val input = clientInput ?: client.getInputStream()
                 val output = upstream.getOutputStream()
@@ -224,10 +226,10 @@ internal object SharingServer {
                     val read = input.read(buffer)
                     if (read <= 0) break
                     output.write(buffer, 0, read)
-                    output.flush()
                 }
             } catch (_: Exception) {
             } finally {
+                runCatching { upstream.getOutputStream().flush() }
                 runCatching { upstream.shutdownOutput() }
             }
         }
