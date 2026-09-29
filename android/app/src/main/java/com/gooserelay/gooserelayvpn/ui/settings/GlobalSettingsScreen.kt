@@ -348,11 +348,13 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                         }
 
                         if (draft.internetSharingEnabled) {
-                            val localIp = remember { getSystemLocalIp() }
+                            var localIp by remember { mutableStateOf(getSystemLocalIp()) }
+                            LaunchedEffect(Unit) { localIp = withContext(Dispatchers.IO) { getSystemLocalIp() } }
 
-                            if (localIp != null) {
+                            val ip = localIp
+                            if (ip != null) {
                                 Text(
-                                    stringResource(R.string.global_local_ip, localIp),
+                                    stringResource(R.string.global_local_ip, ip),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = MdvColor.PrimaryContainer
