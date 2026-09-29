@@ -458,17 +458,17 @@ class GooseRelayVpnService : VpnService() {
                 // Stop everything in Go layer via a single stopClient() call.
                 // Go's StopClient() internally handles StopTun/StopTunBridge
                 // with idempotent guards and panic recovery, so this is safe.
-                val stopped = withTimeoutOrNull(5000L) {
-                    withContext(Dispatchers.IO) {
-                        VpnManager.appendLog("Stopping Go core...")
-                        runCatching {
-                            mobile.Mobile.stopClient()
-                        }.onFailure { e ->
-                            VpnManager.appendLog("Go core stop error: ${e.message}")
-                        }
+                val stopWorker = stopScope.async(Dispatchers.IO) {
+                    VpnManager.appendLog("Stopping Go core...")
+                    runCatching {
+                        mobile.Mobile.stopClient()
+                    }.onFailure { e ->
+                        VpnManager.appendLog("Go core stop error: ${e.message}")
                     }
                 }
+                val stopped = withTimeoutOrNull(5000L) { stopWorker.await() }
                 if (stopped == null) {
+                    stopWorker.cancel()
                     VpnManager.appendLog("Go core stop timed out, proceeding anyway")
                 } else {
                     VpnManager.appendLog("Go core stopped successfully")
