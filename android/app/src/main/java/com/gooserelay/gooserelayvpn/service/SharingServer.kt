@@ -90,7 +90,8 @@ internal object SharingServer {
     internal suspend fun handleHttpProxyClient(client: java.net.Socket, upstreamSocksPort: Int, username: String, password: String) {
         try {
             client.soTimeout = 15000
-            val input = client.getInputStream()
+            // Buffered: coalesces per-byte read() syscalls. The SAME wrapper MUST reach the client->upstream pump: bytes already read past the headers belong to the tunnel/body, not to us.
+            val input = java.io.BufferedInputStream(client.getInputStream())
             val output = client.getOutputStream().bufferedWriter()
 
             val requestLine = readLineUnbuffered(input) ?: return
@@ -150,7 +151,7 @@ internal object SharingServer {
                 client.soTimeout = 0
                 output.write("HTTP/1.1 200 Connection Established\r\n\r\n")
                 output.flush()
-                bridgeBidirectional(client, upstream)
+                bridgeBidirectional(client, upstream, input)
             } else {
                 val target = parseProxyTarget(method, url)
                 if (target == null) {
@@ -189,14 +190,14 @@ internal object SharingServer {
                 val upstreamOut = upstream.getOutputStream()
                 upstreamOut.write(rewritten.toByteArray(Charsets.ISO_8859_1))
                 upstreamOut.flush()
-                bridgeBidirectional(client, upstream)
+                bridgeBidirectional(client, upstream, input)
             }
 } catch (_: Exception) {} finally {
         runCatching { client.close() }
     }
     }
 
-    private suspend fun bridgeBidirectional(client: java.net.Socket, upstream: java.net.Socket) = coroutineScope {
+    private suspend fun bridgeBidirectional(client: java.net.Socket, upstream: java.net.Socket, clientInput: java.io.InputStream? = null) = coroutineScope {
         val upToClient = launch(Dispatchers.IO) {
             val buffer = ByteArray(8192)
             try {
@@ -217,7 +218,7 @@ internal object SharingServer {
         val clientToUp = launch(Dispatchers.IO) {
             val buffer = ByteArray(8192)
             try {
-                val input = client.getInputStream()
+                val input = clientInput ?: client.getInputStream()
                 val output = upstream.getOutputStream()
                 while (isActive && !client.isClosed && !upstream.isClosed) {
                     val read = input.read(buffer)
