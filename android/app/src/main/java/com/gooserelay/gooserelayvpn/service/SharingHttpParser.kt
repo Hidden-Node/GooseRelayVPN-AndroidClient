@@ -1,5 +1,7 @@
 package com.gooserelay.gooserelayvpn.service
 
+private val ABSOLUTE_FORM_REGEX = Regex("^http://(\\[[0-9a-fA-F:.]+\\]|[^/:\\[\\]?]+)(?::(\\d+))?(/.*|\\?.*)?$", RegexOption.IGNORE_CASE)
+
 /**
  * Parsed proxy-target from a request line.
  * For CONNECT: "host:port" (port optional, default 443 per convention here).
@@ -36,7 +38,7 @@ internal fun parseProxyTarget(method: String, target: String): ProxyTarget? {
     // always arrives as CONNECT.
     if (!method.equals("GET", ignoreCase = true) && !method.equals("POST", ignoreCase = true) &&
         !method.equals("HEAD", ignoreCase = true)) return null
-    val m = Regex("^http://(\\[[0-9a-fA-F:.]+\\]|[^/:\\[\\]?]+)(?::(\\d+))?(/.*|\\?.*)?$", RegexOption.IGNORE_CASE).find(target) ?: return null
+    val m = ABSOLUTE_FORM_REGEX.find(target) ?: return null
     val rawHost = m.groupValues[1]
     if (rawHost.isBlank()) return null
     val host = if (rawHost.startsWith("[") && rawHost.endsWith("]")) rawHost.substring(1, rawHost.length - 1) else rawHost
