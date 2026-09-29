@@ -31,6 +31,10 @@ deploy.sh
 # Advisor plan files (local only, never pushed)
 /plans/
 
+# Android build outputs (Gradle cache + app build dir; AAR built by build_go_mobile)
+android/.gradle/
+android/app/build/
+
 # Bench artifacts (baselines/ are committed; results/ are per-run)
 /bench/bin/
 /bench/results/*.json
