@@ -74,6 +74,9 @@ class GooseRelayVpnService : VpnService() {
     private var sharingSocksServer: java.net.ServerSocket? = null
     private var sharingHttpServer: java.net.ServerSocket? = null
     private val sharingConnections = java.util.Collections.synchronizedSet(mutableSetOf<java.net.Socket>())
+    // Start-timestamp per tracked sharing socket, for reject diagnostics only.
+    // Guarded by synchronizing on sharingConnections (same monitor as the set).
+    private val sharingConnectionStartMs = mutableMapOf<java.net.Socket, Long>()
     // Throttle bookkeeping for the reject log line below. Guarded by
     // synchronizing on sharingConnections (same monitor the set uses).
     private var lastSharingRejectLogMs = 0L
@@ -767,10 +770,10 @@ class GooseRelayVpnService : VpnService() {
             lastSharingRejectLogMs = now
             val suppressed = suppressedSharingRejects
             suppressedSharingRejects = 0
-            VpnManager.appendLog(
-                "Sharing connection limit reached; rejecting client" +
-                    if (suppressed > 0) " ($suppressed similar rejects suppressed)" else ""
-            )
+            val active = sharingConnections.size
+            val oldest = sharingConnectionStartMs.values.minOrNull()
+            val oldestAgeMs = if (oldest == null) -1L else now - oldest
+            VpnManager.appendLog(formatSharingRejectDiagnostic(active, oldestAgeMs, suppressed))
         }
     }
 
@@ -820,10 +823,12 @@ class GooseRelayVpnService : VpnService() {
                         }
                         launch(Dispatchers.IO) {
                             sharingConnections.add(client)
+                            synchronized(sharingConnections) { sharingConnectionStartMs[client] = System.currentTimeMillis() }
                             try {
                                 SharingServer.handleSharingSocksClient(client, coreSocksPort, username, password)
                             } finally {
                                 sharingConnections.remove(client)
+                                synchronized(sharingConnections) { sharingConnectionStartMs.remove(client) }
                             }
                         }
                     }
@@ -856,10 +861,12 @@ class GooseRelayVpnService : VpnService() {
                         }
                         launch(Dispatchers.IO) {
                             sharingConnections.add(client)
+                            synchronized(sharingConnections) { sharingConnectionStartMs[client] = System.currentTimeMillis() }
                             try {
                                 SharingServer.handleHttpProxyClient(client, coreSocksPort, username, password)
                             } finally {
                                 sharingConnections.remove(client)
+                                synchronized(sharingConnections) { sharingConnectionStartMs.remove(client) }
                             }
                         }
                     }
@@ -880,7 +887,7 @@ class GooseRelayVpnService : VpnService() {
         runCatching { sharingHttpServer?.close() }
         sharingSocksServer = null
         sharingHttpServer = null
-        val open = synchronized(sharingConnections) { sharingConnections.toList().also { sharingConnections.clear() } }
+        val open = synchronized(sharingConnections) { sharingConnections.toList().also { sharingConnections.clear(); sharingConnectionStartMs.clear() } }
         open.forEach { c -> runCatching { c.close() } }
     }
 
