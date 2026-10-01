@@ -230,7 +230,7 @@ class GooseRelayVpnService : VpnService() {
                     val sharingHttpPort = globalSettings.internetSharingHttpPort
                     val user = globalSettings.internetSharingUser
                     val pass = globalSettings.internetSharingPass
-                    startInternetSharing(sharingSocksPort, sharingHttpPort, activeLocalSocksPort, user, pass)
+                    startInternetSharing(sharingSocksPort, sharingHttpPort, activeLocalSocksPort, user, pass, profile.socksUser, profile.socksPass)
                 }
 
                 if (proxyMode) {
@@ -782,7 +782,9 @@ class GooseRelayVpnService : VpnService() {
         httpPort: Int,
         coreSocksPort: Int,
         username: String,
-        password: String
+        password: String,
+        coreSocksUser: String = "",
+        coreSocksPass: String = ""
     ) {
         sharingStartStopMutex.withLock {
             stopSharingServers()
@@ -825,7 +827,7 @@ class GooseRelayVpnService : VpnService() {
                             sharingConnections.add(client)
                             synchronized(sharingConnections) { sharingConnectionStartMs[client] = System.currentTimeMillis() }
                             try {
-                                SharingServer.handleSharingSocksClient(client, coreSocksPort, username, password)
+                                SharingServer.handleSharingSocksClient(client, coreSocksPort, username, password, coreSocksUser, coreSocksPass)
                             } finally {
                                 sharingConnections.remove(client)
                                 synchronized(sharingConnections) { sharingConnectionStartMs.remove(client) }
@@ -863,7 +865,7 @@ class GooseRelayVpnService : VpnService() {
                             sharingConnections.add(client)
                             synchronized(sharingConnections) { sharingConnectionStartMs[client] = System.currentTimeMillis() }
                             try {
-                                SharingServer.handleHttpProxyClient(client, coreSocksPort, username, password)
+                                SharingServer.handleHttpProxyClient(client, coreSocksPort, username, password, coreSocksUser, coreSocksPass)
                             } finally {
                                 sharingConnections.remove(client)
                                 synchronized(sharingConnections) { sharingConnectionStartMs.remove(client) }

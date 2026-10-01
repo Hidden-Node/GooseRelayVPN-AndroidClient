@@ -90,4 +90,22 @@ class SharingHttpParserTest {
         val t = parseProxyTarget("GET", "http://example.com?x=1")!!
         assertThat(t.path).isEqualTo("/?x=1")
     }
+
+    @Test
+    fun `PUT DELETE PATCH absolute-form parse like POST`() {
+        listOf("PUT", "DELETE", "PATCH").forEach { method ->
+            val t = parseProxyTarget(method, "http://example.com:8080/submit")!!
+            assertThat(t.host).isEqualTo("example.com")
+            assertThat(t.port).isEqualTo(8080)
+            assertThat(t.path).isEqualTo("/submit")
+        }
+    }
+
+    @Test
+    fun `OPTIONS absolute-form parses path`() {
+        val t = parseProxyTarget("OPTIONS", "http://example.com/x")!!
+        assertThat(t.host).isEqualTo("example.com")
+        assertThat(t.port).isEqualTo(80)
+        assertThat(t.path).isEqualTo("/x")
+    }
 }
