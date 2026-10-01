@@ -82,7 +82,7 @@ cd android
 ./gradlew :app:assembleDebug
 # Output: android/app/build/outputs/apk/debug/GooseRelayVPN.apk
 
-# 3. Build the release AAB (requires signing config in local.properties).
+# 3. Build the release AAB (requires signing config via ANDROID_* env vars, see android/app/build.gradle.kts).
 ./gradlew :app:bundleRelease
 ```
 

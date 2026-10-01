@@ -61,9 +61,9 @@ The app wraps this flow in Android `VpnService` so selected/full traffic can be 
 - 🎯 Split tunneling with package selection
 
 ### Profile Management (v1.7.1+)
-- 📋 **Remote profile subscriptions** - Sync profiles from remote HTTPS URLs
-- 🔗 **goose-relay:// protocol** - Share profiles via Base64-encoded URI scheme
-- 📤 **JSON import/export** - Full profile backup and restore
+- 📋 **Remote profile subscriptions** - Sync profiles from remote HTTPS URLs (manual refresh)
+- 🔗 **goose-relay:// protocol** - Share core profile fields (name, script_keys, tunnel_key) via Base64-encoded URI scheme
+- 📤 **JSON import/export** - Profile backup and restore via file
 - 📋 **Clipboard import/export** - Quick copy-paste profile sharing
 - 🔄 **Remote updates** - One-click refresh from remote source
 - ⚙️ **Auto-save** - Changes saved automatically to local database
@@ -78,15 +78,14 @@ The app wraps this flow in Android `VpnService` so selected/full traffic can be 
 ### User Interface
 - 🏠 **Home tab** - Real-time connection status with telemetry cards
 - 📊 **Live logs** - Core and app-level diagnostic logs
-- ⚙️ **Global settings** - Internet sharing, DNS, connection mode
-- 🌍 **Settings tab** - Profile-specific configuration
-- 🎨 Material Design 3 with dark mode support
+- ⚙️ **Settings tab** - Global settings (connection mode, split tunneling, internet sharing, DNS)
+- 🌍 **Profile settings** - Per-profile configuration (opened from Profiles)
+- 🎨 Material Design 3 with dark theme
 
 ### System Integration
 - 📱 **Internet sharing** - Share VPN via SOCKS/HTTP proxy (LAN)
 - 🔒 **Split tunneling** - Include/exclude specific apps from VPN
 - 🌐 **Fake DNS** - Local DNS interception and resolution
-- 🔐 **Allow LAN** - Route local network traffic outside VPN
 - 🔋 **Low overhead** - Efficient Go-based core
 
 ## Configuration Model (Profile)
@@ -141,7 +140,7 @@ Profile fields are aligned with GooseRelay client config. Create profiles manual
 - Fill in fields directly in the form
 
 #### 2. JSON File
-- Tap the `+` button → Select "From JSON"
+- Tap the `+` button → Select "From JSON File"
 - Choose a `.json` file from your device
 - Profile fields are auto-populated
 
@@ -152,15 +151,15 @@ Profile fields are aligned with GooseRelay client config. Create profiles manual
 
 #### 4. Profile Sharing (goose-relay:// Protocol) — **NEW**
 - Open a profile → Tap **Share** icon
-- Select "to Clipboard" to copy `goose-relay://` URI
-- Share via messaging, QR code, or link
-- Recipients paste into clipboard and tap "From Clipboard"
+- Select "to Clipboard" to copy `goose-relay://` URI (contains only `name`, `script_keys`, `tunnel_key`)
+- Share the copied URI via messaging or link
+- Recipients copy it to clipboard and tap "From Clipboard"
 
 ### Remote Profile Subscriptions (v1.7.1+) — **NEW**
 
 #### Setting Up Remote Sync
 1. **Edit Profile** and add Remote URL: `https://your-server.com/profiles/my-profile.json`
-2. Profile will fetch and auto-update from this URL on each refresh
+2. Profile content is fetched from this URL only when you manually refresh (no automatic sync)
 3. **Tap Refresh** (↻) icon in Profiles toolbar to manually sync
 4. Changes save locally automatically
 
@@ -170,9 +169,8 @@ https://example.com/path/to/profile.json
 ```
 
 Supported endpoints:
-- Any HTTPS server hosting profile JSON
-- Optional HTTP Basic Auth: `https://user:pass@example.com/profile.json`
-- Self-signed certs: Certificate validation required (add to system trust store)
+- Any HTTPS server hosting profile JSON (system certificate trust is used; self-signed certs must be added to the system trust store)
+- No dedicated HTTP Basic Auth handling in the app; URL-embedded credentials (`https://user:pass@...`) are passed to `HttpURLConnection` as-is and may not authenticate
 
 #### Auto-Update Behavior
 - Profiles with remote URLs fetch on **manual refresh** only (not automatic)
@@ -180,33 +178,15 @@ Supported endpoints:
 - Local changes are preserved if remote URL is not set
 - On update failure, error message displayed in snackbar
 
-## Default Split Tunneling Apps
-
-By default, these apps bypass the VPN (included in split tunnel list):
-
-- Instagram (`com.instagram.android`)
-- Telegram (`org.telegram.messenger`)
-- WhatsApp (`com.whatsapp`)
-- YouTube (`com.google.android.youtube`)
-- Chrome (`com.android.chrome`)
-- Gmail (`com.google.android.gm`)
-- Google Play Store (`com.android.vending`)
-- Google Search (`com.google.android.googlequicksearchbox`)
-- Twitter/X (`com.twitter.android`)
-- OpenAI ChatGPT (`com.openai.chatgpt`)
-
-Modify in **Global Settings** → **Split Tunneling** → Edit package list.
-
 ## Global Settings
 
 ### Connection Mode
 - **VPN**: Full VPN routing (default)
-- **SOCKS**: Direct SOCKS proxy (app-by-app)
+- **PROXY**: Direct proxy mode without VPN routing
 
 ### Tunneling
-- **Split Tunneling**: Enable per-app VPN selection (default: enabled)
+- **Split Tunneling**: Enable per-app VPN selection (default: disabled)
 - **Mode**: Include selected apps or exclude selected apps
-- **Allow LAN**: Route local network traffic outside VPN
 - **Fake DNS**: Intercept DNS queries locally (default: enabled)
 
 ### Internet Sharing
@@ -220,8 +200,8 @@ Modify in **Global Settings** → **Split Tunneling** → Edit package list.
 - **Auto-save**: Changes persist automatically (default: enabled in v1.7.1+)
 
 ### Clipboard Export/Import (v1.7.1+) — **NEW**
-- Tap **⋮** (More) menu in Settings toolbar
-- **Export to Clipboard** — Copy all settings as JSON
+- Tap **⋮** (More) menu in the Settings tab toolbar (Global Settings screen)
+- **Export to Clipboard** — Copy global settings as JSON (sharing credentials excluded)
 - **Import from Clipboard** — Paste previously exported settings
 
 ## Upstream Setup Flow (Required)
@@ -269,8 +249,14 @@ For complete infrastructure details, see upstream docs:
 ### Build Go Mobile Bridge
 
 ```bash
+bash ./android/build_go_mobile.sh
+```
+
+Or from inside `android/`:
+
+```bash
 cd android
-bash ../build_go_mobile.sh
+bash ./build_go_mobile.sh
 ```
 
 This creates AAR library with GooseRelay core compiled for all architectures.
@@ -286,9 +272,10 @@ Output: `app/build/outputs/apk/debug/GooseRelayVPN.apk`
 
 ### Build Release APK
 
-Requires signing configuration in `local.properties`:
+Requires signing configuration via environment variables (read in `android/app/build.gradle.kts`):
 
-```properties
+```bash
+ANDROID_SIGNING_ENABLED=true
 ANDROID_KEYSTORE_PATH=/path/to/keystore.jks
 ANDROID_KEYSTORE_PASSWORD=keystore_password
 ANDROID_KEY_ALIAS=key_alias
@@ -436,7 +423,6 @@ Release produces:
 - ✅ **Global settings clipboard** export/import
 - ✅ **Auto-save** for profile and global settings changes
 - ✅ **Dropdown menus** for profile management (+ button, share)
-- ✅ **Default split tunneling apps** (Instagram, Telegram, WhatsApp, YouTube, Chrome, Gmail, Play Store, etc.)
 - ✅ Updated to **Gradle 8.13**, **Android Gradle Plugin 8.13.0**
 - ✅ Updated to **Go 1.25.0** with latest dependencies
 - ✅ JVM memory increased (Xmx4096m)
@@ -463,10 +449,10 @@ Release produces:
 
 ### Go Core
 - **Version**: 1.25.0 (upgraded from 1.23.1)
-- **Crypto**: AES-256-GCM (golang.org/x/crypto)
+- **Crypto**: AES-256-GCM (golang.org/x/crypto, indirect)
 - **Networking**: golang.org/x/net 0.52.0, tun2socks
-- **Compression**: klauspost/compress (Brotli, Gzip)
-- **Logging**: Uber zap
+- **Compression**: klauspost/compress (indirect)
+- **Logging**: Uber zap (indirect)
 
 ### Key Dependencies
 
@@ -479,7 +465,7 @@ Release produces:
 
 **Android:**
 - Jetpack Compose, Navigation, Hilt, Room
-- Datastore Proto, Gson, Coil (images)
+- DataStore (Preferences), Gson
 
 See `go.mod`, `go.sum`, and `android/build.gradle.kts` for complete lists.
 

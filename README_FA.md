@@ -18,11 +18,15 @@
 
 ## امکانات اصلی
 
-- یکپارچه‌سازی VPN اندروید (`VpnService` + tun2socks)
+- یکپارچه‌سازی VPN اندروید (`VpnService` + `tun2socks`)
 - پیکربندی مبتنی بر پروفایل
 - وضعیت و تله‌متری در صفحه Home
 - تب Logs برای عیب‌یابی Android/Core
-- Split Tunneling و Internet Sharing
+- حالت اتصال `VPN` یا `PROXY`
+- تانلینگ انتخابی اپ‌ها (`Split Tunneling`، پیش‌فرض: خاموش و بدون لیست پیش‌فرض) و اشتراک اینترنت (`Internet Sharing`)
+- رهگیری محلی DNS با `Fake DNS` و امکان DNS سفارشی
+- اشتراک‌گذاری پروفایل با `goose-relay://` و کلیپ‌بورد
+- سابسکریپشن راه‌دور پروفایل (فقط با Refresh دستی)
 
 ## مدل پیکربندی پروفایل
 
@@ -30,33 +34,42 @@
 
 ```json
 {
+  "name": "My VPN Profile",
   "debug_timing": false,
   "socks_host": "127.0.0.1",
   "socks_port": 1080,
+  "socks_user": "",
+  "socks_pass": "",
   "google_host": "216.239.38.120",
   "sni": ["www.google.com", "mail.google.com", "accounts.google.com"],
   "script_keys": [
     "REPLACE_WITH_DEPLOYMENT_ID",
-    "OPTIONAL_SECOND_DEPLOYMENT_ID"
+    "OPTIONAL_SECOND_DEPLOYMENT_ID|account@example.com"
   ],
-  "tunnel_key": "REPLACE_WITH_OUTPUT_OF_scripts_gen-key.sh"
+  "tunnel_key": "REPLACE_WITH_OUTPUT_OF_scripts_gen-key.sh",
+  "coalesce_step_ms": 0,
+  "idle_slots_per_bucket": 2
 }
 ```
 
 نکات:
-- در UI، `script_keys` باید خط‌به‌خط وارد شود.
-- `tunnel_key` باید با سمت سرور یکی باشد.
-- فرمت Import/Export در اپ: JSON
+- در UI، `script_keys` باید خط‌به‌خط وارد شود؛ هر خط `ID` یا `ID|account` است.
+- هر دو فیلد `socks_user` و `socks_pass` باید با هم خالی یا با هم پر باشند.
+- فیلد `tunnel_key` باید دقیقاً `64` کاراکتر hex باشد و با سمت سرور یکی باشد.
+- مقدار `socks_port` بین `1` تا `65535` و مقدار `idle_slots_per_bucket` بین `1` تا `3` است.
+- روش‌های Import/Export در اپ: فایل JSON، کلیپ‌بورد (`JSON` یا `goose-relay://`) و سابسکریپشن از URL راه‌دور.
+- اشتراک `goose-relay://` فقط سه فیلد `name` و `script_keys` و `tunnel_key` را منتقل می‌کند.
+- سابسکریپشن راه‌دور فقط با دکمه Refresh دستی به‌روز می‌شود؛ همگام‌سازی خودکار وجود ندارد.
 
 ## جریان راه‌اندازی اصلی (الزامی)
 
 قبل از استفاده از کلاینت اندروید، زیرساخت پروژه اصلی باید آماده باشد:
 
 1. آماده‌سازی VPS و اجرای `goose-server`
-2. Deploy کردن `apps_script/Code.gs` و گرفتن Deployment ID
+2. دیپلوی `apps_script/Code.gs` و گرفتن Deployment ID
 3. ساخت کلید با `scripts/gen-key.sh`
 4. وارد کردن `script_keys` و `tunnel_key` در پروفایل اندروید
-5. اتصال در اپ و تنظیم پراکسی برای برنامه/مرورگر (در صورت نیاز)
+5. اتصال در اپ از صفحه Home (در حالت `VPN` نیازی به تنظیم دستی پراکسی نیست؛ فقط در حالت `PROXY` باید پراکسی را دستی ست کنید)
 
 راهنمای کامل زیرساخت در پروژه اصلی:
 - https://github.com/kianmhz/GooseRelayVPN
@@ -66,7 +79,7 @@
 پیش‌نیازها:
 - Android Studio
 - JDK 17
-- Go 1.22+
+- Go 1.25+
 - Android SDK / NDK
 
 ساخت AAR (پل Go mobile):
@@ -87,7 +100,8 @@ cd android
 Workflowهای این مخزن:
 - `.github/workflows/android-ci.yml`
 - `.github/workflows/release-manual.yml`
-- `.github/workflows/release.yml`
+
+> فایل `release.yml` وجود ندارد؛ انتشار با اجرای دستی `release-manual.yml` انجام می‌شود.
 
 Secretهای لازم برای انتشار دستی امضاشده:
 - `ANDROID_KEYSTORE_BASE64`
@@ -101,7 +115,7 @@ Secretهای لازم برای انتشار دستی امضاشده:
   - چند ثانیه صبر کنید و دوباره وصل شوید.
   - مطمئن شوید اپ دیگری از همان پورت استفاده نمی‌کند.
 - اگر اتصال روی حالت آماده‌سازی ماند:
-  - `script_keys` و `tunnel_key` را بررسی کنید.
+  - مقادیر `script_keys` و `tunnel_key` را بررسی کنید.
   - لاگ‌ها را در تب Logs ببینید.
 - اگر ترافیک عبور نمی‌کند:
   - مجوز VPN اندروید را بررسی کنید.
