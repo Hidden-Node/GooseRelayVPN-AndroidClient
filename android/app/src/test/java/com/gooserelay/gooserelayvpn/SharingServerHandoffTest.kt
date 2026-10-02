@@ -171,4 +171,105 @@ class SharingServerHandoffTest {
             }
         }
     }
+
+    @Test
+    fun `httpConnect_oneSidedEof_drainsBridge`() = runBlocking {
+        withTimeout(15000) {
+            val release = java.util.concurrent.atomic.AtomicBoolean(false)
+            val (stubPort, stubThread) = runStub { input, output ->
+                readExactly(input, 3)
+                output.write(byteArrayOf(0x05, 0x00)); output.flush()
+                readExactly(input, 4 + 1 + "example.com".length + 2)
+                output.write(byteArrayOf(0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
+                // Emulate a peer that swallows half-close: ignore EOF (FIN) and hold
+                // the connection open; exit only on socket error or test teardown.
+                // `release` is harness-only teardown the handler never observes.
+                try {
+                    while (!release.get()) {
+                        val r = try {
+                            input.read()
+                        } catch (e: java.net.SocketTimeoutException) {
+                            continue
+                        }
+                        if (r < 0) {
+                            Thread.sleep(200)
+                            continue
+                        }
+                    }
+                } catch (_: Exception) {
+                    // Handler closed the socket: exit so joinStub passes.
+                }
+            }
+            val server = ServerSocket(0)
+            val client = Socket("127.0.0.1", server.localPort)
+            client.soTimeout = 8000
+            val accepted = server.accept()
+            val handlerJob = launch(Dispatchers.IO) {
+                SharingServer.handleHttpProxyClient(accepted, stubPort, "", "")
+            }
+            try {
+                val head =
+                    "CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n"
+                        .toByteArray(Charsets.ISO_8859_1)
+                client.getOutputStream().write(head)
+                client.getOutputStream().flush()
+                val reply = readHttpHeaders(client.getInputStream())
+                assertThat(reply).startsWith("HTTP/1.1 200")
+                client.shutdownOutput()
+                handlerJob.join()
+                release.set(true)
+                joinStub(stubThread)
+                assertThat(handlerJob.isCompleted).isTrue()
+            } finally {
+                runCatching { client.close() }
+                runCatching { accepted.close() }
+                runCatching { server.close() }
+            }
+        }
+    }
+
+    @Test
+    fun `httpGet_keepAliveHeaders_rewrittenToClose`() = runBlocking {
+        withTimeout(10000) {
+            var upstreamHeaders = ""
+            val (stubPort, stubThread) = runStub { input, output ->
+                readExactly(input, 3)
+                output.write(byteArrayOf(0x05, 0x00)); output.flush()
+                readExactly(input, 4 + 1 + "example.com".length + 2)
+                output.write(byteArrayOf(0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
+                upstreamHeaders = readHttpHeaders(input)
+                output.write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+                output.flush()
+            }
+            val server = ServerSocket(0)
+            val client = Socket("127.0.0.1", server.localPort)
+            client.soTimeout = 8000
+            val accepted = server.accept()
+            val handlerJob = launch(Dispatchers.IO) {
+                SharingServer.handleHttpProxyClient(accepted, stubPort, "", "")
+            }
+            try {
+                val request =
+                    ("GET http://example.com:8080/a HTTP/1.1\r\n" +
+                        "Host: example.com:8080\r\n" +
+                        "Connection: keep-alive\r\n" +
+                        "Proxy-Connection: keep-alive\r\n\r\n")
+                        .toByteArray(Charsets.ISO_8859_1)
+                client.getOutputStream().write(request)
+                client.getOutputStream().flush()
+                val reply = readHttpHeaders(client.getInputStream())
+                assertThat(reply).startsWith("HTTP/1.1 200")
+                client.shutdownOutput()
+                handlerJob.join()
+                joinStub(stubThread)
+                assertThat(upstreamHeaders).contains("Connection: close")
+                assertThat(upstreamHeaders).doesNotContain("keep-alive")
+                assertThat(upstreamHeaders).doesNotContain("Proxy-Connection")
+            } finally {
+                runCatching { client.close() }
+                runCatching { accepted.close() }
+                runCatching { server.close() }
+            }
+        }
+    }
 }
