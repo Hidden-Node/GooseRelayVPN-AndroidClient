@@ -224,6 +224,7 @@ class SharingServerHandoffTest {
                 joinStub(stubThread)
                 assertThat(handlerJob.isCompleted).isTrue()
             } finally {
+                release.set(true)
                 runCatching { client.close() }
                 runCatching { accepted.close() }
                 runCatching { server.close() }
