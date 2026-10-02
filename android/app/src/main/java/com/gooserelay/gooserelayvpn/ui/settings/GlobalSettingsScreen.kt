@@ -47,12 +47,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -95,11 +98,20 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
         mutableStateOf(current.internetSharingHttpPort.toString())
     }
     var modeExpanded by remember(current) { mutableStateOf(false) }
-    var showAppPicker by remember(current) { mutableStateOf(false) }
-    var availableQuery by remember(current) { mutableStateOf("") }
-    var selectedQuery by remember(current) { mutableStateOf("") }
-    var activeTab by remember(current) { mutableStateOf("AVAILABLE") }
-    var draftAppSelection by remember(current) { mutableStateOf(parseCsv(current.splitPackagesCsv).toMutableSet()) }
+    var showAppPicker by rememberSaveable(current) { mutableStateOf(false) }
+    var availableQuery by rememberSaveable(current) { mutableStateOf("") }
+    var selectedQuery by rememberSaveable(current) { mutableStateOf("") }
+    var activeTab by rememberSaveable(current) { mutableStateOf("AVAILABLE") }
+    var draftAppSelection by rememberSaveable(
+        current,
+        saver = Saver<MutableState<MutableSet<String>>, Any>(
+            save = { it.value.toList() },
+            restore = {
+                val restored = (it as? List<*>)?.filterIsInstance<String>().orEmpty().toMutableSet()
+                mutableStateOf(restored)
+            }
+        )
+    ) { mutableStateOf(parseCsv(current.splitPackagesCsv).toMutableSet()) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val socksPortValue = sharingSocksPortText.toIntOrNull()

@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,15 +56,15 @@ fun SettingsScreen(
         return
     }
 
-    var debugTiming by remember(profile.id) { mutableStateOf(profile.debugTiming) }
-    var socksHost by remember(profile.id) { mutableStateOf(profile.socksHost) }
-    var socksPort by remember(profile.id) { mutableStateOf(profile.socksPort.toString()) }
-    var socksUser by remember(profile.id) { mutableStateOf(profile.socksUser) }
-    var socksPass by remember(profile.id) { mutableStateOf(profile.socksPass) }
-    var googleHost by remember(profile.id) { mutableStateOf(profile.googleHost) }
-    var sniText by remember(profile.id) { mutableStateOf(profile.sniJson.removePrefix("[").removeSuffix("]").replace("\"", "")) }
-    var scriptKeys by remember(profile.id) { mutableStateOf(profile.scriptKeysText) }
-    var tunnelKey by remember(profile.id) { mutableStateOf(profile.tunnelKey) }
+    var debugTiming by rememberSaveable(profile.id) { mutableStateOf(profile.debugTiming) }
+    var socksHost by rememberSaveable(profile.id) { mutableStateOf(profile.socksHost) }
+    var socksPort by rememberSaveable(profile.id) { mutableStateOf(profile.socksPort.toString()) }
+    var socksUser by rememberSaveable(profile.id) { mutableStateOf(profile.socksUser) }
+    var socksPass by rememberSaveable(profile.id) { mutableStateOf(profile.socksPass) }
+    var googleHost by rememberSaveable(profile.id) { mutableStateOf(profile.googleHost) }
+    var sniText by rememberSaveable(profile.id) { mutableStateOf(profile.sniJson.removePrefix("[").removeSuffix("]").replace("\"", "")) }
+    var scriptKeys by rememberSaveable(profile.id) { mutableStateOf(profile.scriptKeysText) }
+    var tunnelKey by rememberSaveable(profile.id) { mutableStateOf(profile.tunnelKey) }
 
     val clipboardManager = LocalClipboardManager.current
 
