@@ -117,4 +117,40 @@ class SharingTunnelTest {
         runCatching { s.close() }
         joinStub(t)
     }
+
+    @Test
+    fun `auth handshake succeeds when core requires user pass`() {
+        val (port, t) = runStub { input, output ->
+            val greeting = readExactly(input, 4)
+            assertThat(greeting).isEqualTo(byteArrayOf(0x05, 0x02, 0x00, 0x02))
+            output.write(byteArrayOf(0x05, 0x02)); output.flush()
+            val auth = readExactly(input, 5)
+            assertThat(auth).isEqualTo(byteArrayOf(0x01, 0x01, 'u'.code.toByte(), 0x01, 'p'.code.toByte()))
+            output.write(byteArrayOf(0x01, 0x00)); output.flush()
+            readExactly(input, 4 + 1 + "example.com".length + 2)
+            output.write(byteArrayOf(0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
+            readExactly(input, 1) // hold until the test closes the socket -> stub EOF, thread exits
+        }
+        val s = createSocks5Tunnel(port, "example.com", 80, "u", "p")
+        assertThat(s.isConnected).isTrue()
+        assertThat(s.isClosed).isFalse()
+        runCatching { s.close() }
+        joinStub(t)
+    }
+
+    @Test
+    fun `wrong core password throws and socket closed`() {
+        val eofSeen = AtomicInteger(-2)
+        val (port, t) = runStub { input, output ->
+            readExactly(input, 4)
+            output.write(byteArrayOf(0x05, 0x02)); output.flush()
+            readExactly(input, 7) // 01 ulen(1) u plen(3) bad
+            output.write(byteArrayOf(0x01, 0x01)); output.flush()
+            eofSeen.set(input.read()) // -1 iff the tunnel closed its socket after throwing
+        }
+        val thrown = runCatching { createSocks5Tunnel(port, "example.com", 80, "u", "bad") }
+        assertThat(thrown.exceptionOrNull()).isInstanceOf(IllegalStateException::class.java)
+        joinStub(t)
+        assertThat(eofSeen.get()).isEqualTo(-1)
+    }
 }

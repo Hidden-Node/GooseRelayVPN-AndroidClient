@@ -7,7 +7,7 @@ internal object SharingServer {
 
     private const val PUMP_BUFFER_SIZE = 32 * 1024
 
-    internal suspend fun handleSharingSocksClient(client: java.net.Socket, coreSocksPort: Int, username: String, password: String) {
+    internal suspend fun handleSharingSocksClient(client: java.net.Socket, coreSocksPort: Int, username: String, password: String, coreSocksUser: String? = null, coreSocksPass: String? = null) {
         var upstream: java.net.Socket? = null
         try {
             client.soTimeout = 15000
@@ -67,7 +67,7 @@ internal object SharingServer {
             val portBytes = ByteArray(2); readFully(input, portBytes, 0, 2)
             val port = ((portBytes[0].toInt() and 0xFF) shl 8) or (portBytes[1].toInt() and 0xFF)
 
-            upstream = try { createSocks5Tunnel(coreSocksPort, host, port) } catch (e: Exception) {
+            upstream = try { createSocks5Tunnel(coreSocksPort, host, port, coreSocksUser, coreSocksPass) } catch (e: Exception) {
                 VpnManager.appendLog("Sharing SOCKS5 upstream to $host:$port failed: ${e.message}")
                 output.write(byteArrayOf(0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
                 return
@@ -76,6 +76,8 @@ internal object SharingServer {
             // WebSocket) must not be killed by a read timeout.
             upstream.soTimeout = 0
             client.soTimeout = 0
+            upstream.keepAlive = true
+            client.keepAlive = true
             // 0x05 0x00 0x00 0x01 + 4-byte bind addr + 2-byte bind port
             output.write(byteArrayOf(0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0)); output.flush()
 
@@ -89,7 +91,7 @@ internal object SharingServer {
         }
     }
 
-    internal suspend fun handleHttpProxyClient(client: java.net.Socket, upstreamSocksPort: Int, username: String, password: String) {
+    internal suspend fun handleHttpProxyClient(client: java.net.Socket, upstreamSocksPort: Int, username: String, password: String, coreSocksUser: String? = null, coreSocksPass: String? = null) {
         try {
             client.soTimeout = 15000
             // Buffered: coalesces per-byte read() syscalls. The SAME wrapper MUST reach the client->upstream pump: bytes already read past the headers belong to the tunnel/body, not to us.
@@ -143,7 +145,7 @@ internal object SharingServer {
                     return
                 }
                 val upstream = try {
-                    createSocks5Tunnel(upstreamSocksPort, target.host, target.port)
+                    createSocks5Tunnel(upstreamSocksPort, target.host, target.port, coreSocksUser, coreSocksPass)
                 } catch (e: Exception) {
                     VpnManager.appendLog("Sharing HTTP CONNECT to ${target.host}:${target.port} failed: ${e.message}")
                     output.write("HTTP/1.1 502 Bad Gateway\r\n\r\n"); output.flush()
@@ -151,6 +153,8 @@ internal object SharingServer {
                 }
                 upstream.soTimeout = 0
                 client.soTimeout = 0
+                upstream.keepAlive = true
+                client.keepAlive = true
                 output.write("HTTP/1.1 200 Connection Established\r\n\r\n")
                 output.flush()
                 bridgeBidirectional(client, upstream, input)
@@ -161,7 +165,7 @@ internal object SharingServer {
                     return
                 }
                 val upstream = try {
-                    createSocks5Tunnel(upstreamSocksPort, target.host, target.port)
+                    createSocks5Tunnel(upstreamSocksPort, target.host, target.port, coreSocksUser, coreSocksPass)
                 } catch (e: Exception) {
                     VpnManager.appendLog("Sharing HTTP $method to ${target.host}:${target.port} failed: ${e.message}")
                     output.write("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n"); output.flush()
@@ -169,6 +173,8 @@ internal object SharingServer {
                 }
                 upstream.soTimeout = 0
                 client.soTimeout = 0
+                upstream.keepAlive = true
+                client.keepAlive = true
                 // Re-emit the request with a relative path (origin-form) to
                 // the tunnel, then bridge; the tunnel's SOCKS5 target is
                 // already resolved by createSocks5Tunnel.
@@ -178,7 +184,9 @@ internal object SharingServer {
                         if (idx <= 0) return@filter true
                         val name = line.substring(0, idx).trim()
                         !name.equals("Host", ignoreCase = true) &&
-                            !name.equals("Proxy-Authorization", ignoreCase = true)
+                            !name.equals("Proxy-Authorization", ignoreCase = true) &&
+                            !name.equals("Connection", ignoreCase = true) &&
+                            !name.equals("Proxy-Connection", ignoreCase = true)
                     }
                     .joinToString("") { "$it\r\n" }
                 val rewritten = buildString {
@@ -186,6 +194,10 @@ internal object SharingServer {
                     append("Host: ").append(target.host)
                     if (target.port != 80) append(':').append(target.port)
                     append("\r\n")
+                    // Absolute-form is bridged once per connection: force
+                    // close so a keep-alive second request never lands on
+                    // the wrong upstream.
+                    append("Connection: close\r\n")
                     append(forwardedHeaders)
                     append("\r\n")
                 }
@@ -212,8 +224,11 @@ internal object SharingServer {
                 }
             } catch (_: Exception) {
             } finally {
-                runCatching { client.getOutputStream().flush() }
-                runCatching { client.shutdownOutput() }
+                // Close both sockets: closing unblocks the peer pump's
+                // blocking read so the bridge drains instead of waiting
+                // for BOTH directions to finish on its own.
+                runCatching { upstream.close() }
+                runCatching { client.close() }
             }
         }
 
@@ -229,8 +244,11 @@ internal object SharingServer {
                 }
             } catch (_: Exception) {
             } finally {
-                runCatching { upstream.getOutputStream().flush() }
-                runCatching { upstream.shutdownOutput() }
+                // Close both sockets: closing unblocks the peer pump's
+                // blocking read so the bridge drains instead of waiting
+                // for BOTH directions to finish on its own.
+                runCatching { upstream.close() }
+                runCatching { client.close() }
             }
         }
 

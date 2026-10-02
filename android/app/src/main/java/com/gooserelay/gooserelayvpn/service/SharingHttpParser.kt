@@ -5,7 +5,7 @@ private val ABSOLUTE_FORM_REGEX = Regex("^http://(\\[[0-9a-fA-F:.]+\\]|[^/:\\[\\
 /**
  * Parsed proxy-target from a request line.
  * For CONNECT: "host:port" (port optional, default 443 per convention here).
- * For absolute-form GET/POST: full URL is decomposed to host/port/path.
+ * For absolute-form non-CONNECT methods: full URL is decomposed to host/port/path.
  */
 internal data class ProxyTarget(val host: String, val port: Int, val path: String)
 
@@ -13,7 +13,7 @@ internal data class ProxyTarget(val host: String, val port: Int, val path: Strin
  * Parses the target of a proxy request line.
  * - CONNECT: accepts "host:port", "host" (default port 443), and
  *   "[ipv6-literal]:port" / "[ipv6-literal]".
- * - GET/POST with absolute-form URL: "http://host[:port]/path".
+ * - Any non-CONNECT method with absolute-form URL: "http://host[:port]/path".
  * Returns null when the line is not one of these shapes.
  */
 internal fun parseProxyTarget(method: String, target: String): ProxyTarget? {
@@ -35,9 +35,8 @@ internal fun parseProxyTarget(method: String, target: String): ProxyTarget? {
         return ProxyTarget(host, port, "")
     }
     // absolute-form: scheme://host[:port]/path — only http accepted; https
-    // always arrives as CONNECT.
-    if (!method.equals("GET", ignoreCase = true) && !method.equals("POST", ignoreCase = true) &&
-        !method.equals("HEAD", ignoreCase = true)) return null
+    // always arrives as CONNECT. Any non-CONNECT method (GET, POST, PUT,
+    // DELETE, ...) shares this path decomposition.
     val m = ABSOLUTE_FORM_REGEX.find(target) ?: return null
     val rawHost = m.groupValues[1]
     if (rawHost.isBlank()) return null
