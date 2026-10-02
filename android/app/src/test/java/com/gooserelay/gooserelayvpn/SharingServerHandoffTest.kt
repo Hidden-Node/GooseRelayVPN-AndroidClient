@@ -216,8 +216,11 @@ class SharingServerHandoffTest {
                 val reply = readHttpHeaders(client.getInputStream())
                 assertThat(reply).startsWith("HTTP/1.1 200")
                 client.shutdownOutput()
-                handlerJob.join()
-                release.set(true)
+                try {
+                    handlerJob.join()
+                } finally {
+                    release.set(true)
+                }
                 joinStub(stubThread)
                 assertThat(handlerJob.isCompleted).isTrue()
             } finally {
