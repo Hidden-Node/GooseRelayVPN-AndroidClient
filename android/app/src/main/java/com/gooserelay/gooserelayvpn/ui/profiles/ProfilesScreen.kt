@@ -56,6 +56,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
@@ -76,6 +77,7 @@ import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
+import kotlinx.coroutines.launch
 
 data class ScriptKeyEntry(
     val id: String = "",
@@ -141,6 +143,7 @@ fun ProfilesScreen(
     val updateMessage by viewModel.updateMessage.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var showEditor by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
     val editing = profiles.find { it.id == editingId }
@@ -155,11 +158,14 @@ fun ProfilesScreen(
     LaunchedEffect(updateMessage) {
         val msg = updateMessage ?: return@LaunchedEffect
         viewModel.clearUpdateMessage()
-        snackbarHostState.showSnackbar(msg)
+        scope.launch { snackbarHostState.showSnackbar(msg) }
     }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null) {
+            exportTargetId = null
+            return@rememberLauncherForActivityResult
+        }
         val target = profiles.find { it.id == exportTargetId }
         if (target == null) {
             showErrorDialog = "Export failed: profile no longer exists."
@@ -369,7 +375,7 @@ fun ProfilesScreen(
         )
     }
 
-    if (showEditor) {
+    if (showEditor && (editingId == null || editing != null)) {
         ProfileEditorDialog(
             profile = editing,
             onSave = {
