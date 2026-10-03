@@ -169,6 +169,7 @@ fun ProfilesScreen(
         val target = profiles.find { it.id == exportTargetId }
         if (target == null) {
             showErrorDialog = "Export failed: profile no longer exists."
+            exportTargetId = null
             return@rememberLauncherForActivityResult
         }
         viewModel.exportProfileToFile(target, uri, context.contentResolver) { exportTargetId = null }
