@@ -376,7 +376,7 @@ fun ProfilesScreen(
         )
     }
 
-    if (showEditor && (editingId == null || editing != null)) {
+    if (showEditor) {
         ProfileEditorDialog(
             profile = editing,
             onSave = {
