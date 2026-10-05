@@ -92,6 +92,7 @@ internal object SharingServer {
     }
 
     internal suspend fun handleHttpProxyClient(client: java.net.Socket, upstreamSocksPort: Int, username: String, password: String, coreSocksUser: String? = null, coreSocksPass: String? = null) {
+        var upstream: java.net.Socket? = null
         try {
             client.soTimeout = 15000
             // Buffered: coalesces per-byte read() syscalls. The SAME wrapper MUST reach the client->upstream pump: bytes already read past the headers belong to the tunnel/body, not to us.
@@ -144,7 +145,7 @@ internal object SharingServer {
                     output.write("HTTP/1.1 400 Bad Request\r\n\r\n"); output.flush()
                     return
                 }
-                val upstream = try {
+                upstream = try {
                     createSocks5Tunnel(upstreamSocksPort, target.host, target.port, coreSocksUser, coreSocksPass)
                 } catch (e: Exception) {
                     VpnManager.appendLog("Sharing HTTP CONNECT to ${target.host}:${target.port} failed: ${e.message}")
@@ -164,7 +165,7 @@ internal object SharingServer {
                     output.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"); output.flush()
                     return
                 }
-                val upstream = try {
+                upstream = try {
                     createSocks5Tunnel(upstreamSocksPort, target.host, target.port, coreSocksUser, coreSocksPass)
                 } catch (e: Exception) {
                     VpnManager.appendLog("Sharing HTTP $method to ${target.host}:${target.port} failed: ${e.message}")
@@ -207,6 +208,7 @@ internal object SharingServer {
                 bridgeBidirectional(client, upstream, input)
             }
 } catch (_: Exception) {} finally {
+        runCatching { upstream?.close() }
         runCatching { client.close() }
     }
     }
