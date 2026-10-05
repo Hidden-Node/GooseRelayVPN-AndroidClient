@@ -38,6 +38,7 @@ class SharingHttpUpstreamCloseTest {
         }
         override fun getKeepAlive(): Boolean = delegate.keepAlive
         override fun close() {
+            runCatching { super.close() }
             runCatching { delegate.close() }
         }
         override fun isClosed(): Boolean = delegate.isClosed
