@@ -52,10 +52,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +77,7 @@ import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
+import kotlinx.coroutines.launch
 
 data class ScriptKeyEntry(
     val id: String = "",
@@ -138,25 +143,36 @@ fun ProfilesScreen(
     val updateMessage by viewModel.updateMessage.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var showEditor by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<ProfileEntity?>(null) }
-    var profilePendingDelete by remember { mutableStateOf<ProfileEntity?>(null) }
-    var showErrorDialog by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    var showEditor by rememberSaveable { mutableStateOf(false) }
+    var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val editing = profiles.find { it.id == editingId }
+    var pendingDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val profilePendingDelete = profiles.find { it.id == pendingDeleteId }
+    var showErrorDialog by rememberSaveable { mutableStateOf<String?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
-    var profileToExport by remember { mutableStateOf<ProfileEntity?>(null) }
+    var exportTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val clipboardManager = LocalClipboardManager.current
 
     LaunchedEffect(updateMessage) {
-        updateMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearUpdateMessage()
-        }
+        val msg = updateMessage ?: return@LaunchedEffect
+        viewModel.clearUpdateMessage()
+        scope.launch { snackbarHostState.showSnackbar(msg) }
     }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null || profileToExport == null) return@rememberLauncherForActivityResult
-        viewModel.exportProfileToFile(profileToExport!!, uri, context.contentResolver) { profileToExport = null }
+        if (uri == null) {
+            exportTargetId = null
+            return@rememberLauncherForActivityResult
+        }
+        val target = profiles.find { it.id == exportTargetId }
+        if (target == null) {
+            showErrorDialog = "Export failed: profile no longer exists."
+            exportTargetId = null
+            return@rememberLauncherForActivityResult
+        }
+        viewModel.exportProfileToFile(target, uri, context.contentResolver) { exportTargetId = null }
     }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -227,7 +243,7 @@ fun ProfilesScreen(
                                 text = { Text("Add Manual") },
                                 onClick = {
                                     menuExpanded = false
-                                    editing = null
+                                    editingId = null
                                     showEditor = true
                                 }
                             )
@@ -298,7 +314,7 @@ fun ProfilesScreen(
                                 Text("${profile.socksHost}:${profile.socksPort}")
                             }
 
-                            IconButton(onClick = { editing = profile; showEditor = true }) {
+                            IconButton(onClick = { editingId = profile.id; showEditor = true }) {
                                 Icon(Icons.Filled.Edit, contentDescription = "Edit")
                             }
 
@@ -329,14 +345,14 @@ fun ProfilesScreen(
                                         text = { Text("to JSON") },
                                         onClick = {
                                             shareMenuExpanded = false
-                                            profileToExport = profile
+                                            exportTargetId = profile.id
                                             exportLauncher.launch("goose_profile_${profile.name}.json")
                                         }
                                     )
                                 }
                             }
 
-                            IconButton(onClick = { profilePendingDelete = profile }) {
+                            IconButton(onClick = { pendingDeleteId = profile.id }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Delete")
                             }
                         }
@@ -366,15 +382,15 @@ fun ProfilesScreen(
             onSave = {
                 if (editing == null) viewModel.addProfile(it) else viewModel.updateProfile(it)
                 showEditor = false
-                editing = null
+                editingId = null
             },
-            onDismiss = { showEditor = false; editing = null }
+            onDismiss = { showEditor = false; editingId = null }
         )
     }
 
     profilePendingDelete?.let { profile ->
         AlertDialog(
-            onDismissRequest = { profilePendingDelete = null },
+            onDismissRequest = { pendingDeleteId = null },
             title = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_delete_confirm_title)) },
             text = {
                 Text(
@@ -388,14 +404,14 @@ fun ProfilesScreen(
                 TextButton(
                     onClick = {
                         viewModel.deleteProfile(profile)
-                        profilePendingDelete = null
+                        pendingDeleteId = null
                     }
                 ) {
                     Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_delete))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { profilePendingDelete = null }) {
+                TextButton(onClick = { pendingDeleteId = null }) {
                     Text(stringResource(com.gooserelay.gooserelayvpn.R.string.action_cancel))
                 }
             }
@@ -410,20 +426,28 @@ private fun ProfileEditorDialog(
     onSave: (ProfileEntity) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var name by remember { mutableStateOf(profile?.name ?: "Default") }
-    var debugTiming by remember { mutableStateOf(profile?.debugTiming ?: false) }
-    var socksHost by remember { mutableStateOf(profile?.socksHost ?: "127.0.0.1") }
-    var socksPort by remember { mutableStateOf((profile?.socksPort ?: 1080).toString()) }
-    var socksUser by remember { mutableStateOf(profile?.socksUser ?: "") }
-    var socksPass by remember { mutableStateOf(profile?.socksPass ?: "") }
-    var googleHost by remember { mutableStateOf(profile?.googleHost ?: "216.239.38.120") }
-    var sniCsv by remember { mutableStateOf(profile?.sniJson?.replace("[", "")?.replace("]", "")?.replace("\"", "") ?: "www.google.com, mail.google.com, accounts.google.com") }
-    var scriptKeyEntries by remember { mutableStateOf(parseScriptKeysText(profile?.scriptKeysText ?: "").ifEmpty { listOf(ScriptKeyEntry()) }) }
-    var tunnelKey by remember { mutableStateOf(profile?.tunnelKey ?: "") }
-    var coalesceStepMs by remember { mutableStateOf((profile?.coalesceStepMs ?: 0).toString()) }
-    var idleSlotsPerBucket by remember { mutableStateOf((profile?.idleSlotsPerBucket ?: 2).toString()) }
-    var remoteUrl by remember { mutableStateOf(profile?.remoteUrl ?: "") }
-    var showErrorDialog by remember { mutableStateOf<String?>(null) }
+    var name by rememberSaveable { mutableStateOf(profile?.name ?: "Default") }
+    var debugTiming by rememberSaveable { mutableStateOf(profile?.debugTiming ?: false) }
+    var socksHost by rememberSaveable { mutableStateOf(profile?.socksHost ?: "127.0.0.1") }
+    var socksPort by rememberSaveable { mutableStateOf((profile?.socksPort ?: 1080).toString()) }
+    var socksUser by rememberSaveable { mutableStateOf(profile?.socksUser ?: "") }
+    var socksPass by rememberSaveable { mutableStateOf(profile?.socksPass ?: "") }
+    var googleHost by rememberSaveable { mutableStateOf(profile?.googleHost ?: "216.239.38.120") }
+    var sniCsv by rememberSaveable { mutableStateOf(profile?.sniJson?.replace("[", "")?.replace("]", "")?.replace("\"", "") ?: "www.google.com, mail.google.com, accounts.google.com") }
+    var scriptKeyEntries by rememberSaveable(
+        saver = Saver<MutableState<List<ScriptKeyEntry>>, Any>(
+            save = { scriptKeysToText(it.value) },
+            restore = {
+                val restored = (it as? String)?.let(::parseScriptKeysText).orEmpty()
+                mutableStateOf(restored.ifEmpty { listOf(ScriptKeyEntry()) })
+            }
+        )
+    ) { mutableStateOf(parseScriptKeysText(profile?.scriptKeysText ?: "").ifEmpty { listOf(ScriptKeyEntry()) }) }
+    var tunnelKey by rememberSaveable { mutableStateOf(profile?.tunnelKey ?: "") }
+    var coalesceStepMs by rememberSaveable { mutableStateOf((profile?.coalesceStepMs ?: 0).toString()) }
+    var idleSlotsPerBucket by rememberSaveable { mutableStateOf((profile?.idleSlotsPerBucket ?: 2).toString()) }
+    var remoteUrl by rememberSaveable { mutableStateOf(profile?.remoteUrl ?: "") }
+    var showErrorDialog by rememberSaveable { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

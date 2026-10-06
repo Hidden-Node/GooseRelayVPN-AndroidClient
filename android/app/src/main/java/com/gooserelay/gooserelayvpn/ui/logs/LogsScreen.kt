@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -97,7 +98,7 @@ private val explicitSeverityPattern = Regex("^\\[([A-Za-z]+)]\\s*(.*)$")
 @Composable
 fun LogsScreen(onBack: () -> Unit) {
     val logEntries by VpnManager.logEntries.collectAsState()
-    var activeFilter by remember { mutableStateOf(LogFilter.ALL) }
+    var activeFilter by rememberSaveable { mutableStateOf(LogFilter.ALL) }
     val filteredLogs = remember(logEntries, activeFilter) {
         when (activeFilter) {
             LogFilter.ALL -> logEntries
@@ -114,7 +115,7 @@ fun LogsScreen(onBack: () -> Unit) {
     val stats = remember(uiLogItems) { buildLogStats(uiLogItems) }
 
     val listState = rememberLazyListState()
-    var autoScrollEnabled by remember { mutableStateOf(true) }
+    var autoScrollEnabled by rememberSaveable { mutableStateOf(true) }
     val context = LocalContext.current
 
     val shareLogs: () -> Unit = {
