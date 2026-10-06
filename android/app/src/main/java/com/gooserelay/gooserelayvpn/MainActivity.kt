@@ -16,6 +16,7 @@ import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
 import com.gooserelay.gooserelayvpn.ui.navigation.AppNavigation
 import com.gooserelay.gooserelayvpn.ui.theme.GooseRelayVPNTheme
+import com.gooserelay.gooserelayvpn.util.ImportIntentGate
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +34,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handleJsonImportIntent(intent)
+        lastHandledImportUri = savedInstanceState?.getString(ImportIntentGate.KEY_LAST_HANDLED_URI)
+        if (savedInstanceState == null) handleJsonImportIntent(intent, isFirstCreation = true)
         enableEdgeToEdge()
         setContent {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -44,13 +46,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(ImportIntentGate.KEY_LAST_HANDLED_URI, lastHandledImportUri)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleJsonImportIntent(intent)
+        handleJsonImportIntent(intent, isFirstCreation = true)
     }
 
-    private fun handleJsonImportIntent(intent: Intent?) {
+    private fun handleJsonImportIntent(intent: Intent?, isFirstCreation: Boolean) {
         val action = intent?.action ?: return
         if (action != Intent.ACTION_VIEW && action != Intent.ACTION_SEND) return
 
@@ -61,11 +68,8 @@ class MainActivity : ComponentActivity() {
         } ?: return
 
         val uriToken = uri.toString()
-        if (lastHandledImportUri == uriToken) return
-        val mime = intent.type.orEmpty()
-        val isJsonLike = mime.contains("json", ignoreCase = true) ||
-            uri.toString().lowercase().endsWith(".json")
-        if (!isJsonLike) return
+        if (!ImportIntentGate.shouldHandle(isFirstCreation, uriToken, lastHandledImportUri)) return
+        if (!ImportIntentGate.isJsonLike(intent.type, uri.toString())) return
 
         runCatching {
             contentResolver.takePersistableUriPermission(
@@ -73,6 +77,11 @@ class MainActivity : ComponentActivity() {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
         }
+
+        lastHandledImportUri = uriToken
+        intent.action = null
+        intent.data = null
+        setIntent(intent)
 
         lifecycleScope.launch {
             val imported = withContext(Dispatchers.IO) {
@@ -88,7 +97,6 @@ class MainActivity : ComponentActivity() {
                 ).show()
                 return@launch
             }
-            lastHandledImportUri = uriToken
             val id = withContext(Dispatchers.IO) { profileRepository.insertProfile(imported) }
             profileRepository.setSelectedProfile(id)
             Toast.makeText(
