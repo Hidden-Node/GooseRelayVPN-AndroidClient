@@ -1,9 +1,6 @@
 package com.gooserelay.gooserelayvpn.util
 
-import com.google.gson.Gson
 import com.google.gson.JsonParser
-
-private val clipboardGson = Gson()
 
 /**
  * Parse text read from "Import from Clipboard".
