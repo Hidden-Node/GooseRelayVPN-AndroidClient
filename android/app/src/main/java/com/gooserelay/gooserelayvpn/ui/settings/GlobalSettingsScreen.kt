@@ -77,6 +77,7 @@ import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.GlobalSettings
 import com.gooserelay.gooserelayvpn.util.SplitTunnelMode
+import com.gooserelay.gooserelayvpn.util.parseImportedSettings
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.height
 import kotlinx.coroutines.launch
@@ -171,11 +172,11 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                     menuExpanded = false
                                     val text = clipboardManager.getText()?.text
                                     if (!text.isNullOrBlank()) {
-                                        try {
-                                            val imported = gson.fromJson(text, GlobalSettings::class.java)
+                                        val imported = parseImportedSettings(text)
+                                        if (imported != null) {
                                             draft = imported
                                             scope.launch { snackbarHostState.showSnackbar("Settings imported from clipboard") }
-                                        } catch (e: Exception) {
+                                        } else {
                                             scope.launch { snackbarHostState.showSnackbar("Failed to parse settings JSON") }
                                         }
                                     } else {
