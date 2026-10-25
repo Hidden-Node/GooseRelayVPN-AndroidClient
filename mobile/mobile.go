@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kianmhz/GooseRelayVPN/mobile/tun"
 	"github.com/kianmhz/GooseRelayVPN/internal/carrier"
 	"github.com/kianmhz/GooseRelayVPN/internal/config"
 	"github.com/kianmhz/GooseRelayVPN/internal/session"
 	isocks "github.com/kianmhz/GooseRelayVPN/internal/socks"
+	"github.com/kianmhz/GooseRelayVPN/mobile/tun"
 	"github.com/things-go/go-socks5"
 	"github.com/things-go/go-socks5/statute"
 	"github.com/xjasonlyu/tun2socks/v2/engine"
@@ -112,12 +112,12 @@ func StartClient(configPath string, logPath string) error {
 	}
 
 	carr, err := carrier.New(carrier.Config{
-		ScriptURLs:       cfg.ScriptURLs,
-		ScriptAccounts:   cfg.ScriptAccounts,
-		AESKeyHex:        cfg.AESKeyHex,
-		DebugTiming:      cfg.DebugTiming,
-		CoalesceStep:     time.Duration(cfg.CoalesceStepMs) * time.Millisecond,
-		CoalesceMax:      time.Duration(cfg.CoalesceMaxMs) * time.Millisecond,
+		ScriptURLs:         cfg.ScriptURLs,
+		ScriptAccounts:     cfg.ScriptAccounts,
+		AESKeyHex:          cfg.AESKeyHex,
+		DebugTiming:        cfg.DebugTiming,
+		CoalesceStep:       time.Duration(cfg.CoalesceStepMs) * time.Millisecond,
+		CoalesceMax:        time.Duration(cfg.CoalesceMaxMs) * time.Millisecond,
 		IdleSlotsPerBucket: cfg.IdleSlotsPerBucket,
 		Fronting: carrier.FrontingConfig{
 			GoogleIP: cfg.GoogleIP,
@@ -256,6 +256,7 @@ func StopClient() {
 
 	StopTun()
 	StopTunBridge()
+	StopTunGvisor()
 }
 
 func IsRunning() bool {
@@ -372,9 +373,26 @@ func StopTunBridge() {
 		tunOwnedFd = -1
 	}
 	engineMu.Unlock()
-	
+
 	tun.StopFakeDNSProxy()
 }
+
+// StartTunGvisor starts the gVisor TUN bridge (see mobile/tun).
+// The bridge answers DNS locally with fake IPs; no resolver list is needed.
+// logPath is the same Go-core log file path the service passes to
+// StartClient - bridge lines are appended there so they reach the in-app
+// Logs tab via the existing tailLogFile (no logcat needed on-device).
+func StartTunGvisor(tunFd int64, mtu int64, socksAddr string, socksUser string, socksPass string, logPath string) error {
+	return tun.StartTunGvisor(tunFd, mtu, socksAddr, socksUser, socksPass, logPath)
+}
+
+// StopTunGvisor stops the gVisor TUN bridge. Safe to call multiple times.
+func StopTunGvisor() { tun.StopTunGvisor() }
+
+// IsTunGvisorRunning reports whether the bridge lifecycle is live. The
+// Android service polls this from its watchdog (plan 054) and stops the VPN
+// if the engine disappears while the UI still shows "connected".
+func IsTunGvisorRunning() bool { return tun.IsTunGvisorRunning() }
 
 // GetTunBandwidth returns upload and download bytes.
 func GetTunBandwidth() *Bandwidth {

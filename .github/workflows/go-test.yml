@@ -1,0 +1,24 @@
+name: Go Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run Go tests
+        run: go test -count=1 $(go list ./... | grep -v -e '^github.com/kianmhz/GooseRelayVPN$' -e '^github.com/kianmhz/GooseRelayVPN/mobile')
+
+      - name: Run mobile/tun tests (incl. the linux-only bridge tests)
+        run: go test -count=1 ./mobile/tun/... -v
