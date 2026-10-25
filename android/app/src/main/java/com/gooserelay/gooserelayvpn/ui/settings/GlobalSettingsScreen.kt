@@ -332,9 +332,17 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                         RowSwitch(
                             title = "Fake DNS (Remote Resolution)",
                             checked = draft.fakeDnsEnabled,
+                            enabled = !draft.gvisorEngineEnabled,
                             onChecked = { draft = draft.copy(fakeDnsEnabled = it) }
                         )
-                        if (draft.fakeDnsEnabled) {
+                        if (draft.gvisorEngineEnabled) {
+                            Text(
+                                "Fake DNS is handled by the gVisor engine (takes precedence).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MdvColor.OnSurfaceVariant,
+                                modifier = Modifier.padding(start = MdvSpace.S3)
+                            )
+                        } else if (draft.fakeDnsEnabled) {
                             Text(
                                 "Intercepts DNS packets and resolves hostnames at the server. " +
                                 "Best for bypassing DNS filtering in Iran. VPN mode only.",
@@ -751,13 +759,18 @@ private fun AppRow(
 }
 
 @Composable
-private fun RowSwitch(title: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+private fun RowSwitch(
+    title: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onChecked: (Boolean) -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(title)
-        Switch(checked = checked, onCheckedChange = onChecked)
+        Switch(checked = checked, onCheckedChange = onChecked, enabled = enabled)
     }
 }
 

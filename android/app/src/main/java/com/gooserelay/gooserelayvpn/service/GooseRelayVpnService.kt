@@ -140,6 +140,8 @@ class GooseRelayVpnService : VpnService() {
 
     private fun startVpn(profileId: Long) {
         connectJob?.cancel()
+        gvisorWatchdogJob?.cancel()
+        gvisorWatchdogJob = null
         // A new session is starting on this instance: re-enable the network
         // callback (stopVpn() left isStopping=true on purpose so onDestroy
         // skips double-cleanup; a same-instance reconnect must clear it).
@@ -164,7 +166,7 @@ class GooseRelayVpnService : VpnService() {
                 val proxyMode = globalSettings.connectionMode.equals("PROXY", ignoreCase = true)
 
                 VpnManager.appendLog("Loading profile: ${profile.name}")
-                VpnManager.appendLog("Global Settings Loaded - connectionMode: ${globalSettings.connectionMode}, customDnsServers: '${globalSettings.customDnsServers}', fakeDnsEnabled: ${globalSettings.fakeDnsEnabled}")
+                VpnManager.appendLog("Global Settings Loaded - connectionMode: ${globalSettings.connectionMode}, customDnsServers: '${globalSettings.customDnsServers}', fakeDnsEnabled: ${globalSettings.fakeDnsEnabled}, gvisorEngineEnabled=${globalSettings.gvisorEngineEnabled}")
 
                 // Check if Go core is still running from previous session
                 ensureGoCoreStopped()
@@ -279,7 +281,7 @@ class GooseRelayVpnService : VpnService() {
                         .also { servers ->
                             VpnManager.appendLog("Using custom DNS servers: ${servers.joinToString()}")
                         }
-                } else if (globalSettings.fakeDnsEnabled) {
+                } else if (engine == Engine.BRIDGE) {
                     // In fake DNS mode, point to TUN bridge DNS
                     listOf("172.19.0.2").also {
                         VpnManager.appendLog("Using Go TUN bridge DNS: 172.19.0.2")
@@ -309,7 +311,7 @@ class GooseRelayVpnService : VpnService() {
                 
                 if (engine == Engine.GVISOR) {
                     builder.addAddress("198.18.0.1", 30)
-                } else if (globalSettings.fakeDnsEnabled) {
+                } else if (engine == Engine.BRIDGE) {
                     builder.addAddress("172.19.0.1", 30)
                 } else {
                     builder.addAddress("10.0.0.2", 32)
@@ -347,7 +349,7 @@ class GooseRelayVpnService : VpnService() {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         builder.setMetered(true)
                     }
-                    if (Build.VERSION.SDK_INT >= 33) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         // Keep LAN and link-local traffic off the tunnel. The
                         // TUN is 198.18.0.1/30, so it overlaps none of these.
                         // Excluding self is already done above.
@@ -442,6 +444,7 @@ class GooseRelayVpnService : VpnService() {
                             gvisorWatchdogJob = serviceScope.launch {
                                 while (isActive) {
                                     delay(2_000)
+                                    if (isStopping) break
                                     if (!mobile.Mobile.isTunGvisorRunning()) {
                                         VpnManager.appendLog("gVisor engine stopped unexpectedly; disconnecting")
                                         stopVpn()
@@ -646,6 +649,8 @@ class GooseRelayVpnService : VpnService() {
             // stopClient() internally handles StopTun + StopTunBridge + cancel
             // with idempotent guards and panic recovery.
             keepaliveJob?.cancel()
+            gvisorWatchdogJob?.cancel()
+            gvisorWatchdogJob = null
             try { mobile.Mobile.stopClient() } catch (_: Exception) {}
             try {
                 vpnInterface?.close()
@@ -662,6 +667,8 @@ class GooseRelayVpnService : VpnService() {
         releaseWakeLock()
         releaseWifiLock()
         isStopping = false
+        gvisorWatchdogJob?.cancel()
+        gvisorWatchdogJob = null
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -723,13 +730,13 @@ class GooseRelayVpnService : VpnService() {
     }
 
     private suspend fun ensureGoCoreStopped() {
-        if (!mobile.Mobile.isRunning()) return
+        if (!mobile.Mobile.isRunning() && !mobile.Mobile.isTunGvisorRunning()) return
         VpnManager.appendLog("Go core is still running, stopping it first...")
         runCatching { mobile.Mobile.stopClient() }
         
-        repeat(20) {
+        repeat(15) {
             delay(200L)
-            if (!mobile.Mobile.isRunning()) {
+            if (!mobile.Mobile.isRunning() && !mobile.Mobile.isTunGvisorRunning()) {
                 VpnManager.appendLog("Go core stopped successfully")
                 return
             }

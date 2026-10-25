@@ -53,12 +53,12 @@ object GlobalSettingsStore {
 
     suspend fun load(context: Context): GlobalSettings {
         return context.dataStore.data.first().toModel().also { settings ->
-            Log.d(TAG, "Loaded settings: connectionMode=${settings.connectionMode}, customDnsServers=${settings.customDnsServers}, fakeDnsEnabled=${settings.fakeDnsEnabled}")
+            Log.d(TAG, "Loaded settings: connectionMode=${settings.connectionMode}, customDnsServers=${settings.customDnsServers}, fakeDnsEnabled=${settings.fakeDnsEnabled}, gvisorEngineEnabled=${settings.gvisorEngineEnabled}")
         }
     }
 
     suspend fun save(context: Context, settings: GlobalSettings) {
-        Log.d(TAG, "Saving settings: connectionMode=${settings.connectionMode}, customDnsServers=${settings.customDnsServers}, fakeDnsEnabled=${settings.fakeDnsEnabled}")
+        Log.d(TAG, "Saving settings: connectionMode=${settings.connectionMode}, customDnsServers=${settings.customDnsServers}, fakeDnsEnabled=${settings.fakeDnsEnabled}, gvisorEngineEnabled=${settings.gvisorEngineEnabled}")
         context.dataStore.edit { prefs ->
             prefs[KEY_CONNECTION_MODE] = settings.connectionMode
             prefs[KEY_SPLIT_TUNNELING_ENABLED] = settings.splitTunnelingEnabled
