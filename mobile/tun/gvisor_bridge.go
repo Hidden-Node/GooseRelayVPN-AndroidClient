@@ -102,6 +102,10 @@ func gvisorPutRelayBuf(b []byte) { gvisorRelayBufPool.Put(&b) }
 // per interval (atomic timestamp, CAS-guarded).
 var gvisorRefusalLogLast atomic.Int64
 
+// Total DNS queries answered locally across all UDP endpoints (shared
+// so port-randomized queries don't reset the rate-limit ramp).
+var gvisorDNSAnswered atomic.Uint64
+
 // ── Stack setup (the synchronous portion of bridge startup) ───────────────────
 
 // gvisorSetupStack performs every fallible, synchronous part of bridge
@@ -109,6 +113,7 @@ var gvisorRefusalLogLast atomic.Int64
 // registrations. It returns the live stack so the caller can spawn only the
 // goroutine that awaits ctx and closes it on shutdown.
 func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string, mapper *gvisorDNSMapper) (*stack.Stack, error) {
+	gvisorDNSAnswered.Store(0)
 	gvisorBridgeLog("starting bridge: tunFd=%d mtu=%d socksAddr=%s", tunFd, mtu, socksAddr)
 
 	s := stack.New(stack.Options{
@@ -379,7 +384,6 @@ func gvisorProxyTCPDirect(ctx context.Context, src net.Conn, dstAddr string, soc
 func gvisorProxyDNSDirect(ctx context.Context, src net.Conn, dstAddr string, mapper *gvisorDNSMapper) {
 	buf := make([]byte, 4096)
 	idleTimeouts := 0
-	answered := 0
 	for {
 		if ctx.Err() != nil {
 			return
@@ -414,7 +418,7 @@ func gvisorProxyDNSDirect(ctx context.Context, src net.Conn, dstAddr string, map
 		// The in-app log is a 2000-line ring buffer: a per-query line would
 		// drown the useful bridge lines. Log the first 20 answers, then
 		// every 100th.
-		answered++
+		answered := gvisorDNSAnswered.Add(1)
 		if answered <= 20 || answered%100 == 0 {
 			gvisorBridgeLog("DNS answered locally %s (%d bytes, %d answered)", dstAddr, len(resp), answered)
 		}

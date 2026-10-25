@@ -677,6 +677,82 @@ func TestGvisorSocks5Handshake(t *testing.T) {
 			t.Fatalf("pipe server script did not complete (clientErr=%v)", clientErr)
 		}
 	})
+
+	t.Run("domain_exceeds_255_bytes_errors", func(t *testing.T) {
+		longDomain := strings.Repeat("a", 256)
+		clientErr, _ := gvisorTestRunHandshake(t, nil, 0x00, true, "", "", longDomain, successReply)
+		if clientErr == nil {
+			t.Fatal("expected connect error for domain > 255 bytes, got nil")
+		}
+		if !strings.Contains(clientErr.Error(), "socks5 connect: target domain exceeds 255 bytes") {
+			t.Fatalf("unexpected error message: %v", clientErr)
+		}
+	})
+}
+
+type gvisorTestHalfCloseConn struct {
+	net.Conn
+	closeWriteCalled bool
+	closeCalled      bool
+}
+
+func (c *gvisorTestHalfCloseConn) CloseWrite() error {
+	c.closeWriteCalled = true
+	return nil
+}
+
+func (c *gvisorTestHalfCloseConn) Close() error {
+	c.closeCalled = true
+	if c.Conn != nil {
+		return c.Conn.Close()
+	}
+	return nil
+}
+
+type gvisorTestPlainConn struct {
+	net.Conn
+	closeCalled bool
+}
+
+func (c *gvisorTestPlainConn) Close() error {
+	c.closeCalled = true
+	if c.Conn != nil {
+		return c.Conn.Close()
+	}
+	return nil
+}
+
+func TestGvisorSocksAuthConnCloseWrite(t *testing.T) {
+	t.Run("delegates_to_underlying_half_closer", func(t *testing.T) {
+		underlying := &gvisorTestHalfCloseConn{}
+		authConn := &gvisorSocksAuthConn{Conn: underlying}
+
+		hc, ok := any(authConn).(interface{ CloseWrite() error })
+		if !ok {
+			t.Fatal("expected *gvisorSocksAuthConn to implement CloseWrite()")
+		}
+		if err := hc.CloseWrite(); err != nil {
+			t.Fatalf("unexpected error from CloseWrite(): %v", err)
+		}
+		if !underlying.closeWriteCalled {
+			t.Fatal("expected underlying CloseWrite() to be called")
+		}
+		if underlying.closeCalled {
+			t.Fatal("underlying Close() should not be called when CloseWrite is supported")
+		}
+	})
+
+	t.Run("falls_back_to_close_when_unsupported", func(t *testing.T) {
+		underlying := &gvisorTestPlainConn{}
+		authConn := &gvisorSocksAuthConn{Conn: underlying}
+
+		if err := authConn.CloseWrite(); err != nil {
+			t.Fatalf("unexpected error from CloseWrite() fallback: %v", err)
+		}
+		if !underlying.closeCalled {
+			t.Fatal("expected underlying Close() fallback to be called")
+		}
+	})
 }
 
 func TestGvisorSocks5ConnectRequest(t *testing.T) {
@@ -730,6 +806,13 @@ func TestGvisorSocks5ConnectRequest(t *testing.T) {
 		}
 		if binary.BigEndian.Uint16(req[20:22]) != 443 {
 			t.Fatalf("wrong port: %d", binary.BigEndian.Uint16(req[20:22]))
+		}
+	})
+
+	t.Run("domain_exceeds_255_bytes_returns_nil", func(t *testing.T) {
+		longDomain := strings.Repeat("a", 256)
+		if req := gvisorBuildSocks5ConnectRequest(longDomain, 443); req != nil {
+			t.Fatalf("expected nil for domain > 255 bytes, got %d bytes", len(req))
 		}
 	})
 }
