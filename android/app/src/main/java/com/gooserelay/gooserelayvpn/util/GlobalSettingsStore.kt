@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -93,8 +94,9 @@ object GlobalSettingsStore {
     }
 
     internal fun parseSplitTunnelMode(raw: String?): SplitTunnelMode {
+        if (raw == null) return SplitTunnelMode.INCLUDE
         return runCatching {
-            SplitTunnelMode.valueOf((raw ?: "INCLUDE").uppercase())
+            SplitTunnelMode.valueOf(raw.trim().uppercase(Locale.ROOT))
         }.getOrDefault(SplitTunnelMode.INCLUDE)
     }
 

@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.gooserelay.gooserelayvpn.util.GlobalSettings
 import com.gooserelay.gooserelayvpn.util.GlobalSettingsStore
 import com.gooserelay.gooserelayvpn.util.SplitTunnelMode
+import java.util.Locale
 import org.junit.Test
 
 class GlobalSettingsStoreTest {
@@ -20,6 +21,19 @@ class GlobalSettingsStoreTest {
         assertThat(GlobalSettingsStore.parseSplitTunnelMode("EXCLUDE")).isEqualTo(SplitTunnelMode.EXCLUDE)
         assertThat(GlobalSettingsStore.parseSplitTunnelMode("exclude")).isEqualTo(SplitTunnelMode.EXCLUDE)
         assertThat(GlobalSettingsStore.parseSplitTunnelMode("include")).isEqualTo(SplitTunnelMode.INCLUDE)
+        assertThat(GlobalSettingsStore.parseSplitTunnelMode("  exclude  ")).isEqualTo(SplitTunnelMode.EXCLUDE)
+    }
+
+    @Test
+    fun parseSplitTunnelMode_parsesCorrectlyUnderTurkishLocale() {
+        val defaultLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            assertThat(GlobalSettingsStore.parseSplitTunnelMode("include")).isEqualTo(SplitTunnelMode.INCLUDE)
+            assertThat(GlobalSettingsStore.parseSplitTunnelMode("exclude")).isEqualTo(SplitTunnelMode.EXCLUDE)
+        } finally {
+            Locale.setDefault(defaultLocale)
+        }
     }
 
     @Test
