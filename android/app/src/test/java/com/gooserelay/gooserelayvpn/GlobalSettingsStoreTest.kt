@@ -18,6 +18,8 @@ class GlobalSettingsStoreTest {
     fun parseSplitTunnelMode_parsesValidModes() {
         assertThat(GlobalSettingsStore.parseSplitTunnelMode("INCLUDE")).isEqualTo(SplitTunnelMode.INCLUDE)
         assertThat(GlobalSettingsStore.parseSplitTunnelMode("EXCLUDE")).isEqualTo(SplitTunnelMode.EXCLUDE)
+        assertThat(GlobalSettingsStore.parseSplitTunnelMode("exclude")).isEqualTo(SplitTunnelMode.EXCLUDE)
+        assertThat(GlobalSettingsStore.parseSplitTunnelMode("include")).isEqualTo(SplitTunnelMode.INCLUDE)
     }
 
     @Test
@@ -29,7 +31,8 @@ class GlobalSettingsStoreTest {
 
     @Test
     fun store_exposesSaveAsyncMethod() {
-        // Assert that the saveAsync API contract is present on the singleton
+        // Assert that the saveAsync API contract is present on the singleton.
+        // Full behavioral DataStore tests require Android Context (instrumented tests).
         val method = GlobalSettingsStore::class.java.methods.find { it.name == "saveAsync" }
         assertThat(method).isNotNull()
     }

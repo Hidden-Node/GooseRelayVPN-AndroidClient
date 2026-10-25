@@ -93,7 +93,9 @@ object GlobalSettingsStore {
     }
 
     internal fun parseSplitTunnelMode(raw: String?): SplitTunnelMode {
-        return runCatching { SplitTunnelMode.valueOf(raw ?: "INCLUDE") }.getOrDefault(SplitTunnelMode.INCLUDE)
+        return runCatching {
+            SplitTunnelMode.valueOf((raw ?: "INCLUDE").uppercase())
+        }.getOrDefault(SplitTunnelMode.INCLUDE)
     }
 
     private fun Preferences.toModel(): GlobalSettings {
