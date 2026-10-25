@@ -99,6 +99,8 @@ func gvisorPutRelayBuf(b []byte) { gvisorRelayBufPool.Put(&b) }
 // per interval (atomic timestamp, CAS-guarded).
 var gvisorRefusalLogLast atomic.Int64
 
+var gvisorBackpressureLogLast atomic.Int64
+
 // Total DNS queries answered locally across all UDP endpoints (shared
 // so port-randomized queries don't reset the rate-limit ramp).
 var gvisorDNSAnswered atomic.Uint64
@@ -190,6 +192,11 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 	sem := make(chan struct{}, gvisorTCPMaxInFlight)
 
 	tcpFwd := tcp.NewForwarder(s, 0, gvisorTCPMaxInFlight, func(r *tcp.ForwarderRequest) {
+		if ctx.Err() != nil {
+			r.Complete(true)
+			return
+		}
+
 		id := r.ID()
 		dstAddr := net.JoinHostPort(id.LocalAddress.String(), strconv.Itoa(int(id.LocalPort)))
 
@@ -218,7 +225,12 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 		select {
 		case sem <- struct{}{}:
 		default:
-			gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent)", dstAddr, gvisorTCPMaxInFlight)
+			now := time.Now().UnixNano()
+			if last := gvisorBackpressureLogLast.Load(); now-last > int64(5*time.Second) {
+				if gvisorBackpressureLogLast.CompareAndSwap(last, now) {
+					gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent)", dstAddr, gvisorTCPMaxInFlight)
+				}
+			}
 			r.Complete(true) // send RST at SYN time
 			return
 		}
@@ -430,7 +442,7 @@ type gvisorHalfCloser interface {
 //	a -> b  =  upload   (device -> internet)
 //	b -> a  =  download (internet -> device)
 //
-// Uses pooled 16 KB buffers to bound per-flow memory.
+// Uses pooled 64 KB buffers to bound per-flow memory.
 //
 // Abort semantics:
 //   - ctx cancelled (bridge bounce / VPN stop) → both sides closed at once.

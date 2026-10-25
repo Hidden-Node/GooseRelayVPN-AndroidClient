@@ -343,8 +343,6 @@ class GooseRelayVpnService : VpnService() {
                 }
 
                 if (engine == Engine.GVISOR) {
-                    // 1500 MTU matches the standard Android VpnService and bridge MTU.
-                    builder.setMtu(1500)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         builder.setMetered(true)
                     }
