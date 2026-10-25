@@ -93,6 +93,7 @@ class GooseRelayVpnService : VpnService() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var keepaliveJob: Job? = null
+    @Volatile
     private var isStopping = false
     @Volatile
     private var socksAuthWarningShown = false

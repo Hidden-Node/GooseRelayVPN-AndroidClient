@@ -769,7 +769,10 @@ private fun RowSwitch(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(title)
+        Text(
+            title,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        )
         Switch(checked = checked, onCheckedChange = onChecked, enabled = enabled)
     }
 }
