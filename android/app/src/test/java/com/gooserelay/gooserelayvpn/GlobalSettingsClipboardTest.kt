@@ -30,6 +30,7 @@ class GlobalSettingsClipboardTest {
             splitPackagesCsv = "com.example.a,com.example.b",
             customDnsServers = "1.1.1.1, 8.8.8.8",
             fakeDnsEnabled = false,
+            gvisorEngineEnabled = true,
             internetSharingEnabled = true,
             internetSharingSocksPort = 8100,
             internetSharingHttpPort = 8101,
@@ -39,6 +40,7 @@ class GlobalSettingsClipboardTest {
         val json = Gson().toJson(original.copy(internetSharingUser = "", internetSharingPass = ""))
         val parsed = parseImportedSettings(json)
         assertThat(parsed).isEqualTo(original.copy(internetSharingUser = "", internetSharingPass = ""))
+        assertThat(parsed!!.gvisorEngineEnabled).isTrue()
     }
 
     @Test
