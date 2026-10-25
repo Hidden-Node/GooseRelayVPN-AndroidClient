@@ -33,6 +33,7 @@ fun parseImportedSettings(raw: String): GlobalSettings? {
         splitPackagesCsv = str("splitPackagesCsv", defaults.splitPackagesCsv),
         customDnsServers = str("customDnsServers", defaults.customDnsServers),
         fakeDnsEnabled = bool("fakeDnsEnabled", defaults.fakeDnsEnabled),
+        gvisorEngineEnabled = bool("gvisorEngineEnabled", defaults.gvisorEngineEnabled),
         internetSharingEnabled = bool("internetSharingEnabled", defaults.internetSharingEnabled),
         internetSharingSocksPort = int("internetSharingSocksPort", defaults.internetSharingSocksPort),
         internetSharingHttpPort = int("internetSharingHttpPort", defaults.internetSharingHttpPort),

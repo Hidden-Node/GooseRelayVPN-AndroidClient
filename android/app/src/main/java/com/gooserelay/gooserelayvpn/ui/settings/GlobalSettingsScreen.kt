@@ -305,12 +305,17 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                         OutlinedTextField(
                             value = draft.customDnsServers,
                             onValueChange = { draft = draft.copy(customDnsServers = it) },
+                            enabled = !draft.gvisorEngineEnabled,
                             label = { Text("Custom DNS Servers") },
                             placeholder = { Text("e.g., 1.1.1.1, 8.8.8.8") },
                             supportingText = {
                                 Text(
-                                    "Comma-separated DNS servers for VPN mode. Leave empty for defaults. " +
-                                    "For remote DNS in Iran: use your VPS IP (if running DNS server) or use Proxy mode instead.",
+                                    if (draft.gvisorEngineEnabled) {
+                                        "Custom DNS is ignored when the gVisor engine is active (uses in-process fake-IP DNS)."
+                                    } else {
+                                        "Comma-separated DNS servers for VPN mode. Leave empty for defaults. " +
+                                        "For remote DNS in Iran: use your VPS IP (if running DNS server) or use Proxy mode instead."
+                                    },
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             },
@@ -333,6 +338,22 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                             Text(
                                 "Intercepts DNS packets and resolves hostnames at the server. " +
                                 "Best for bypassing DNS filtering in Iran. VPN mode only.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MdvColor.OnSurfaceVariant,
+                                modifier = Modifier.padding(start = MdvSpace.S3)
+                            )
+                        }
+
+                        // gVisor engine toggle (experimental)
+                        RowSwitch(
+                            title = "gVisor engine (experimental)",
+                            checked = draft.gvisorEngineEnabled,
+                            onChecked = { draft = draft.copy(gvisorEngineEnabled = it) }
+                        )
+                        if (draft.gvisorEngineEnabled) {
+                            Text(
+                                text = "Use the in-process gVisor TUN engine instead of tun2socks + FakeDNS. " +
+                                    "Same tunnel and server; the bridge answers DNS locally with fake IPs. Default off.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MdvColor.OnSurfaceVariant,
                                 modifier = Modifier.padding(start = MdvSpace.S3)

@@ -20,6 +20,7 @@ data class GlobalSettings(
     val splitPackagesCsv: String = "",
     val customDnsServers: String = "",
     val fakeDnsEnabled: Boolean = true,
+    val gvisorEngineEnabled: Boolean = false,
     val internetSharingEnabled: Boolean = false,
     val internetSharingSocksPort: Int = 8090,
     val internetSharingHttpPort: Int = 8091,
@@ -37,6 +38,7 @@ object GlobalSettingsStore {
     private val KEY_SPLIT_PACKAGES = stringPreferencesKey("split_packages")
     private val KEY_CUSTOM_DNS_SERVERS = stringPreferencesKey("custom_dns_servers")
     private val KEY_FAKE_DNS_ENABLED = booleanPreferencesKey("fake_dns_enabled")
+    private val KEY_GVISOR_ENGINE_ENABLED = booleanPreferencesKey("gvisor_engine_enabled") // gvisorEngineEnabled
     private val KEY_INTERNET_SHARING_ENABLED = booleanPreferencesKey("internet_sharing_enabled")
     private val KEY_INTERNET_SHARING_SOCKS_PORT = stringPreferencesKey("internet_sharing_socks_port")
     private val KEY_INTERNET_SHARING_HTTP_PORT = stringPreferencesKey("internet_sharing_http_port")
@@ -64,6 +66,7 @@ object GlobalSettingsStore {
             prefs[KEY_SPLIT_PACKAGES] = settings.splitPackagesCsv
             prefs[KEY_CUSTOM_DNS_SERVERS] = settings.customDnsServers
             prefs[KEY_FAKE_DNS_ENABLED] = settings.fakeDnsEnabled
+            prefs[KEY_GVISOR_ENGINE_ENABLED] = settings.gvisorEngineEnabled
             prefs[KEY_INTERNET_SHARING_ENABLED] = settings.internetSharingEnabled
             prefs[KEY_INTERNET_SHARING_SOCKS_PORT] = settings.internetSharingSocksPort.toString()
             prefs[KEY_INTERNET_SHARING_HTTP_PORT] = settings.internetSharingHttpPort.toString()
@@ -81,6 +84,7 @@ object GlobalSettingsStore {
             splitPackagesCsv = this[KEY_SPLIT_PACKAGES] ?: "",
             customDnsServers = this[KEY_CUSTOM_DNS_SERVERS] ?: "",
             fakeDnsEnabled = this[KEY_FAKE_DNS_ENABLED] ?: true,
+            gvisorEngineEnabled = this[KEY_GVISOR_ENGINE_ENABLED] ?: false,
             internetSharingEnabled = this[KEY_INTERNET_SHARING_ENABLED] ?: false,
             internetSharingSocksPort = this[KEY_INTERNET_SHARING_SOCKS_PORT]?.toIntOrNull() ?: 8090,
             internetSharingHttpPort = this[KEY_INTERNET_SHARING_HTTP_PORT]?.toIntOrNull() ?: 8091,
