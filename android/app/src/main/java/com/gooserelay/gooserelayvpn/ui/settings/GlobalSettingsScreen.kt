@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -32,6 +33,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -47,6 +49,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
@@ -54,6 +57,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
@@ -130,10 +134,21 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
     val gson = remember { com.google.gson.Gson() }
     var menuExpanded by remember { mutableStateOf(false) }
 
-    LaunchedEffect(draft) {
+    val flushAutosave = {
         val normalized = normalize(draft)
         if (normalized != current) {
             vm.save(normalized)
+        }
+    }
+    val currentFlushAutosave by rememberUpdatedState(flushAutosave)
+
+    LaunchedEffect(draft) {
+        flushAutosave()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            currentFlushAutosave()
         }
     }
 
@@ -263,12 +278,32 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                     selected = draft.splitTunnelMode == SplitTunnelMode.INCLUDE,
                                     onClick = { draft = draft.copy(splitTunnelMode = SplitTunnelMode.INCLUDE) },
                                     label = stringResource(R.string.split_tunnel_mode_include),
+                                    leadingIcon = if (draft.splitTunnelMode == SplitTunnelMode.INCLUDE) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Filled.Done,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(FilterChipDefaults.IconSize),
+                                                tint = MdvColor.Primary
+                                            )
+                                        }
+                                    } else null,
                                     modifier = Modifier.weight(1f)
                                 )
                                 MdvFilterChip(
                                     selected = draft.splitTunnelMode == SplitTunnelMode.EXCLUDE,
                                     onClick = { draft = draft.copy(splitTunnelMode = SplitTunnelMode.EXCLUDE) },
                                     label = stringResource(R.string.split_tunnel_mode_exclude),
+                                    leadingIcon = if (draft.splitTunnelMode == SplitTunnelMode.EXCLUDE) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Filled.Done,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(FilterChipDefaults.IconSize),
+                                                tint = MdvColor.Primary
+                                            )
+                                        }
+                                    } else null,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
