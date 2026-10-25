@@ -45,17 +45,14 @@ const gvisorDNSPort uint16 = 53
 // ── Tuning constants ───────────────────────────────────────────────────────────
 
 const (
-	// gvisorRelayBufSize — each recycled relay buffer. 16 KB keeps per-flow
-	// memory low: small buffers with honest backpressure beat big windows
-	// that let megabytes pile up invisibly inside relay + gVisor buffers,
-	// making uploads LOOK complete while they were actually stalled.
-	gvisorRelayBufSize = 16 * 1024
+	// gvisorRelayBufSize — each recycled relay buffer. Sized to 64 KB to match
+	// high-throughput SOCKS relay buffers in hev-socks5-tunnel and modern netstack.
+	gvisorRelayBufSize = 64 * 1024
 
 	// gvisorTCPMaxInFlight — maximum concurrent TCP connections being
-	// proxied. Browsers/chat apps easily open dozens of flows; each flow
-	// holds relay buffers plus bandwidth inside the tunnel, so a generous
-	// cap turns SYN storms (and weak phones) into memory blow-ups.
-	gvisorTCPMaxInFlight = 96
+	// proxied. Allows up to 512 concurrent connections, providing headroom for
+	// media-heavy apps while strictly bounding memory to prevent LMK aborts.
+	gvisorTCPMaxInFlight = 512
 
 	// gvisorTCPDialTimeout — timeout for dialling the local SOCKS5 proxy
 	// (loopback, sub-millisecond when the engine is healthy).
@@ -68,9 +65,8 @@ const (
 	gvisorRelayWriteStallTimeout = 90 * time.Second
 
 	// gvisorRelayIdleTimeout — close a flow after this much total silence in
-	// BOTH directions. Safety net for fully-stalled flows that produce no
-	// errors.
-	gvisorRelayIdleTimeout = 10 * time.Minute
+	// BOTH directions. 5 minutes matches OkHttp's connection pool idle timeout.
+	gvisorRelayIdleTimeout = 300 * time.Second
 
 	// gvisorRelayIdleCheckInterval — how often the per-flow idle watchdog
 	// ticks.
@@ -137,20 +133,21 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 	sack := tcpip.TCPSACKEnabled(true)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sack)
 
-	// Keep receive buffering static: auto-tuning lets the window balloon far
-	// beyond what the tunnel can drain, hiding stalls from the uploading app
-	// (bufferbloat) and delaying error propagation on cancel.
-	moderate := tcpip.TCPModerateReceiveBufferOption(false)
+	// Enable receive buffer auto-tuning: allows the window to scale with
+	// actual network throughput and latency, preventing artificial throughput
+	// bottlenecks on mobile tunnels.
+	moderate := tcpip.TCPModerateReceiveBufferOption(true)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &moderate)
 
-	// Sized for the tunnel's real throughput (~tens of KB/s): 64 KB default,
-	// 256 KB ceiling. Small windows give the app honest backpressure so a
-	// stalled upload surfaces quickly instead of piling into local buffers.
-	sendBuf := tcpip.TCPSendBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 256 << 10}
+	// Sized for high-throughput streaming over the local TUN loopback: 64 KB default
+	// keeps baseline heap low across many connections, while 512 KB ceiling with
+	// auto-tuning accommodates modern mobile speeds (50-100 Mbps) without ballooning
+	// memory under high concurrency (protecting against Android LMK).
+	sendBuf := tcpip.TCPSendBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 512 << 10}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sendBuf)
 
 	// Matching receive buffer range.
-	recvBuf := tcpip.TCPReceiveBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 256 << 10}
+	recvBuf := tcpip.TCPReceiveBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 512 << 10}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &recvBuf)
 
 	ep, err := fdbased.New(&fdbased.Options{
@@ -228,21 +225,11 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 		r.Complete(false)
 		conn := gonet.NewTCPConn(&wq, ep)
 
-		// Backpressure: wait up to 2s for a slot. Log if dropping.
-		// Use NewTimer (not time.After) so the timer is stopped immediately
-		// when a slot is available or ctx is cancelled — time.After leaves
-		// the underlying timer live for the full 2s on every fast-path
-		// connection, accumulating thousands of leaked timers under load.
-		bpTimer := time.NewTimer(2 * time.Second)
+		// Backpressure: fail fast without blocking the TUN reader loop.
 		select {
 		case sem <- struct{}{}:
-			bpTimer.Stop()
-		case <-bpTimer.C:
+		default:
 			gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent)", dstAddr, gvisorTCPMaxInFlight)
-			_ = conn.Close()
-			return
-		case <-ctx.Done():
-			bpTimer.Stop()
 			_ = conn.Close()
 			return
 		}
@@ -318,7 +305,7 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 // then relays bidirectionally. Each flow gets a fresh connection — loopback
 // is fast.
 func gvisorProxyTCPDirect(ctx context.Context, src net.Conn, dstAddr string, socksAddr string, mapper *gvisorDNSMapper) {
-	host, portStr, err := net.SplitHostPort(dstAddr)
+	origHost, portStr, err := net.SplitHostPort(dstAddr)
 	if err != nil {
 		gvisorBridgeErr("TCP parse %s: %v", dstAddr, err)
 		return
@@ -329,7 +316,7 @@ func gvisorProxyTCPDirect(ctx context.Context, src net.Conn, dstAddr string, soc
 		return
 	}
 
-	host, ok := mapper.mapTarget(host)
+	host, ok := mapper.mapTarget(origHost)
 	if !ok {
 		// A fake IP with no live mapping is never a real target. This
 		// happens after a reconnect while Android still caches an old
@@ -365,7 +352,11 @@ func gvisorProxyTCPDirect(ctx context.Context, src net.Conn, dstAddr string, soc
 		return
 	}
 
-	gvisorBridgeLog("TCP connected: %s", dstAddr)
+	if host != origHost {
+		gvisorBridgeLog("TCP connected: %s:%d (via %s)", host, port, dstAddr)
+	} else {
+		gvisorBridgeLog("TCP connected: %s", dstAddr)
+	}
 	gvisorBidirectionalRelay(ctx, src, proxy)
 }
 
@@ -491,12 +482,15 @@ func gvisorBidirectionalRelay(ctx context.Context, a, b net.Conn) {
 		buf := gvisorGetRelayBuf()
 		defer gvisorPutRelayBuf(buf)
 
+		var lastDeadlineSet time.Time
 		for {
 			n, readErr := src.Read(buf)
 			if n > 0 {
-				_ = dst.SetWriteDeadline(time.Now().Add(gvisorRelayWriteStallTimeout))
+				if time.Since(lastDeadlineSet) > 5*time.Second {
+					_ = dst.SetWriteDeadline(time.Now().Add(gvisorRelayWriteStallTimeout))
+					lastDeadlineSet = time.Now()
+				}
 				_, writeErr := dst.Write(buf[:n])
-				_ = dst.SetWriteDeadline(time.Time{})
 				lastActivity.Store(time.Now().UnixNano())
 				if writeErr != nil {
 					// Stalled write or peer reset: abort the whole flow.

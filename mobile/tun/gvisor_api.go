@@ -86,7 +86,7 @@ func gvisorSocksCredsWrapper(conn net.Conn) net.Conn {
 //
 //	tunFd     – raw file descriptor from Android's
 //	            ParcelFileDescriptor.getFd() (VpnService.establish()).
-//	mtu       – MTU of the TUN interface (<= 0 defaults to 1280).
+//	mtu       – MTU of the TUN interface (<= 0 defaults to 1500).
 //	socksAddr – "host:port" of the SOCKS5 proxy to dial per flow
 //	            (e.g. "127.0.0.1:1080"); must not be empty.
 //	socksUser/socksPass – credentials of that local proxy, threaded from
@@ -147,7 +147,7 @@ func StartTunGvisor(tunFd int64, mtu int64, socksAddr string, socksUser string, 
 
 	tunMTU := int(mtu)
 	if tunMTU <= 0 {
-		tunMTU = 1280
+		tunMTU = 1500
 	}
 
 	// Announce auth use once at startup.
