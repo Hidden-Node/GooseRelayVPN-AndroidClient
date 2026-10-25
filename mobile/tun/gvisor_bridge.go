@@ -50,9 +50,9 @@ const (
 	gvisorRelayBufSize = 64 * 1024
 
 	// gvisorTCPMaxInFlight — maximum concurrent TCP connections being
-	// proxied. Allows up to 512 concurrent connections, providing headroom for
-	// media-heavy apps while strictly bounding memory to prevent LMK aborts.
-	gvisorTCPMaxInFlight = 512
+	// proxied. Allows up to 256 concurrent connections, providing solid headroom
+	// for media apps while strictly bounding memory to ~80 MB total, avoiding Android LMK.
+	gvisorTCPMaxInFlight = 256
 
 	// gvisorTCPDialTimeout — timeout for dialling the local SOCKS5 proxy
 	// (loopback, sub-millisecond when the engine is healthy).
@@ -65,8 +65,9 @@ const (
 	gvisorRelayWriteStallTimeout = 90 * time.Second
 
 	// gvisorRelayIdleTimeout — close a flow after this much total silence in
-	// BOTH directions. 5 minutes matches OkHttp's connection pool idle timeout.
-	gvisorRelayIdleTimeout = 300 * time.Second
+	// BOTH directions. 10 minutes protects quiet background WebSockets,
+	// Telegram/Signal, and push connections from premature termination.
+	gvisorRelayIdleTimeout = 10 * time.Minute
 
 	// gvisorRelayIdleCheckInterval — how often the per-flow idle watchdog
 	// ticks.
@@ -133,21 +134,19 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 	sack := tcpip.TCPSACKEnabled(true)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sack)
 
-	// Enable receive buffer auto-tuning: allows the window to scale with
-	// actual network throughput and latency, preventing artificial throughput
-	// bottlenecks on mobile tunnels.
-	moderate := tcpip.TCPModerateReceiveBufferOption(true)
+	// Disable receive buffer auto-tuning to avoid aggressive expansion on
+	// 0ms loopback which causes bufferbloat and memory bloat on mobile.
+	moderate := tcpip.TCPModerateReceiveBufferOption(false)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &moderate)
 
 	// Sized for high-throughput streaming over the local TUN loopback: 64 KB default
-	// keeps baseline heap low across many connections, while 512 KB ceiling with
-	// auto-tuning accommodates modern mobile speeds (50-100 Mbps) without ballooning
-	// memory under high concurrency (protecting against Android LMK).
-	sendBuf := tcpip.TCPSendBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 512 << 10}
+	// keeps baseline heap low across many connections, while 256 KB ceiling
+	// strictly bounds memory under concurrency (protecting against Android LMK).
+	sendBuf := tcpip.TCPSendBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 256 << 10}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sendBuf)
 
 	// Matching receive buffer range.
-	recvBuf := tcpip.TCPReceiveBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 512 << 10}
+	recvBuf := tcpip.TCPReceiveBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 256 << 10}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &recvBuf)
 
 	ep, err := fdbased.New(&fdbased.Options{
@@ -215,24 +214,25 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 			return
 		}
 
+		// Backpressure: fail fast at SYN time without completing the handshake.
+		select {
+		case sem <- struct{}{}:
+		default:
+			gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent)", dstAddr, gvisorTCPMaxInFlight)
+			r.Complete(true) // send RST at SYN time
+			return
+		}
+
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)
 		if tcpErr != nil {
+			<-sem
 			gvisorBridgeErr("TCP CreateEndpoint failed for %s: %v", dstAddr, tcpErr)
 			r.Complete(true) // send RST
 			return
 		}
 		r.Complete(false)
 		conn := gonet.NewTCPConn(&wq, ep)
-
-		// Backpressure: fail fast without blocking the TUN reader loop.
-		select {
-		case sem <- struct{}{}:
-		default:
-			gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent)", dstAddr, gvisorTCPMaxInFlight)
-			_ = conn.Close()
-			return
-		}
 
 		go func() {
 			defer func() { <-sem }()
