@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -771,7 +772,7 @@ private fun RowSwitch(
     ) {
         Text(
             title,
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            color = if (enabled) LocalContentColor.current else LocalContentColor.current.copy(alpha = 0.38f)
         )
         Switch(checked = checked, onCheckedChange = onChecked, enabled = enabled)
     }

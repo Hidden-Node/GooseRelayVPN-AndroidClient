@@ -93,8 +93,7 @@ class GooseRelayVpnService : VpnService() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var keepaliveJob: Job? = null
-    @Volatile
-    private var isStopping = false
+    private val isStopping = java.util.concurrent.atomic.AtomicBoolean(false)
     @Volatile
     private var socksAuthWarningShown = false
     @Volatile
@@ -146,7 +145,7 @@ class GooseRelayVpnService : VpnService() {
         // A new session is starting on this instance: re-enable the network
         // callback (stopVpn() left isStopping=true on purpose so onDestroy
         // skips double-cleanup; a same-instance reconnect must clear it).
-        isStopping = false
+        isStopping.set(false)
         connectJob = serviceScope.launch {
             try {
                 VpnManager.updateState(VpnManager.VpnState.CONNECTING)
@@ -445,7 +444,7 @@ class GooseRelayVpnService : VpnService() {
                             gvisorWatchdogJob = serviceScope.launch {
                                 while (isActive) {
                                     delay(2_000)
-                                    if (isStopping) break
+                                    if (isStopping.get()) break
                                     if (!mobile.Mobile.isTunGvisorRunning()) {
                                         VpnManager.appendLog("gVisor engine stopped unexpectedly; disconnecting")
                                         stopVpn()
@@ -496,7 +495,7 @@ class GooseRelayVpnService : VpnService() {
                     override fun onAvailable(network: android.net.Network) {
                         val caps = cm.getNetworkCapabilities(network)
                         if (caps == null || caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) return
-                        if (isStopping) return
+                        if (isStopping.get()) return
                         
                         VpnManager.appendLog("Underlying network changed, updating VPN underlying network...")
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
@@ -538,8 +537,7 @@ class GooseRelayVpnService : VpnService() {
     private fun stopVpn() {
         gvisorWatchdogJob?.cancel()
         gvisorWatchdogJob = null
-        if (isStopping) return
-        isStopping = true
+        if (!isStopping.compareAndSet(false, true)) return
         
         VpnManager.updateState(VpnManager.VpnState.DISCONNECTING)
         
@@ -646,7 +644,7 @@ class GooseRelayVpnService : VpnService() {
     override fun onDestroy() {
         // Normal path: stopVpn() already ran — Go layer guards make re-calls no-ops.
         // Force-kill path: stopVpn() was never called, so do full cleanup.
-        if (!isStopping) {
+        if (!isStopping.get()) {
             // stopClient() internally handles StopTun + StopTunBridge + cancel
             // with idempotent guards and panic recovery.
             keepaliveJob?.cancel()
@@ -667,7 +665,7 @@ class GooseRelayVpnService : VpnService() {
         }
         releaseWakeLock()
         releaseWifiLock()
-        isStopping = false
+        isStopping.set(false)
         gvisorWatchdogJob?.cancel()
         gvisorWatchdogJob = null
         serviceScope.cancel()
