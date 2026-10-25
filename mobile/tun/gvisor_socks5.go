@@ -115,6 +115,11 @@ func (c *gvisorSocksAuthConn) CloseWrite() error {
 // gvisorSocks5ConnectTCP performs SOCKS5 method negotiation (no-auth, or
 // USER_PASS when conn is a *gvisorSocksAuthConn) then CONNECT.
 func gvisorSocks5ConnectTCP(conn net.Conn, host string, port uint16) error {
+	req := gvisorBuildSocks5ConnectRequest(host, port)
+	if req == nil {
+		return fmt.Errorf("socks5 connect: invalid target domain (empty or exceeds 255 bytes)")
+	}
+
 	_ = conn.SetDeadline(time.Now().Add(gvisorSocks5HandshakeTimeout))
 	defer func() { _ = conn.SetDeadline(time.Time{}) }()
 
@@ -137,10 +142,6 @@ func gvisorSocks5ConnectTCP(conn net.Conn, host string, port uint16) error {
 	}
 
 	// CONNECT request
-	req := gvisorBuildSocks5ConnectRequest(host, port)
-	if req == nil {
-		return fmt.Errorf("socks5 connect: target domain exceeds 255 bytes")
-	}
 	if _, err := conn.Write(req); err != nil {
 		return fmt.Errorf("connect write: %w", err)
 	}
@@ -180,7 +181,7 @@ func gvisorBuildSocks5ConnectRequest(host string, port uint16) []byte {
 	}
 	// Domain name
 	h := []byte(host)
-	if len(h) > 255 {
+	if len(h) == 0 || len(h) > 255 {
 		return nil
 	}
 	req := make([]byte, 7+len(h))

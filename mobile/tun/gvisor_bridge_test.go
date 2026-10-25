@@ -684,7 +684,7 @@ func TestGvisorSocks5Handshake(t *testing.T) {
 		if clientErr == nil {
 			t.Fatal("expected connect error for domain > 255 bytes, got nil")
 		}
-		if !strings.Contains(clientErr.Error(), "socks5 connect: target domain exceeds 255 bytes") {
+		if !strings.Contains(clientErr.Error(), "socks5 connect: invalid target domain (empty or exceeds 255 bytes)") {
 			t.Fatalf("unexpected error message: %v", clientErr)
 		}
 	})
@@ -806,6 +806,12 @@ func TestGvisorSocks5ConnectRequest(t *testing.T) {
 		}
 		if binary.BigEndian.Uint16(req[20:22]) != 443 {
 			t.Fatalf("wrong port: %d", binary.BigEndian.Uint16(req[20:22]))
+		}
+	})
+
+	t.Run("empty_domain_returns_nil", func(t *testing.T) {
+		if req := gvisorBuildSocks5ConnectRequest("", 443); req != nil {
+			t.Fatalf("expected nil for empty domain, got %d bytes", len(req))
 		}
 	})
 
