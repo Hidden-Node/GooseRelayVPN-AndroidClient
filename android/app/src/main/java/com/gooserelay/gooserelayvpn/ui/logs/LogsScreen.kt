@@ -138,13 +138,12 @@ fun LogsScreen(onBack: () -> Unit) {
         }
     }
 
-    val currentLast = uiLogItems.lastOrNull()
-    val currentSignature = currentLast?.let { it.key to it.details.size }
-    val itemAppended = currentSignature != null && currentSignature != lastObservedSignature
-    lastObservedSignature = currentSignature
-
     LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled, activeFilter) {
+        val currentLast = uiLogItems.lastOrNull()
         if (!autoScrollEnabled || currentLast == null) return@LaunchedEffect
+        val currentSignature = currentLast.key to currentLast.details.size
+        val itemAppended = currentSignature != lastObservedSignature
+        lastObservedSignature = currentSignature
         listState.scrollToLatestItem(
             lastIndex = uiLogItems.lastIndex,
             lastKey = currentLast.key,
@@ -278,14 +277,7 @@ private suspend fun LazyListState.scrollToLatestItem(
     val initialItem = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
     if (initialItem == null) {
         scrollToItem(lastIndex)
-        val item = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex } ?: return
-        val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
-        val overflow = item.offset + item.size - viewportBottom
-        if (overflow > 0) scrollBy(overflow.toFloat())
-        return
-    }
-
-    if (!itemAppended) {
+    } else if (!itemAppended) {
         val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
         val overflow = initialItem.offset + initialItem.size - viewportBottom
         if (overflow > 0) scrollBy(overflow.toFloat())
@@ -298,7 +290,7 @@ private suspend fun LazyListState.scrollToLatestItem(
             .filter { it !== currentInfo }
             .mapNotNull { it.visibleItemsInfo.lastOrNull { item -> item.index == lastIndex && item.key == lastKey } }
             .first()
-    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey } ?: initialItem
+    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey } ?: return
 
     val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
     val overflow = lastItem.offset + lastItem.size - viewportBottom
