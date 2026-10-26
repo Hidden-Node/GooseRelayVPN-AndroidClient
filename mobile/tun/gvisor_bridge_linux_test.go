@@ -209,13 +209,13 @@ func TestGvisorStopDuringStartup(t *testing.T) {
 }
 
 func TestGvisorTuningConstants(t *testing.T) {
-	if gvisorTCPMaxInFlight < 256 {
-		t.Errorf("gvisorTCPMaxInFlight = %d, want >= 256", gvisorTCPMaxInFlight)
+	if gvisorTCPMaxInFlight != 256 {
+		t.Errorf("gvisorTCPMaxInFlight = %d, want 256", gvisorTCPMaxInFlight)
 	}
 	if gvisorRelayIdleTimeout != 10*time.Minute {
 		t.Errorf("gvisorRelayIdleTimeout = %v, want 10m", gvisorRelayIdleTimeout)
 	}
-	if gvisorRelayBufSize < 64*1024 {
-		t.Errorf("gvisorRelayBufSize = %d, want >= 64KB", gvisorRelayBufSize)
+	if gvisorRelayBufSize != 64*1024 {
+		t.Errorf("gvisorRelayBufSize = %d, want 64KB", gvisorRelayBufSize)
 	}
 }
