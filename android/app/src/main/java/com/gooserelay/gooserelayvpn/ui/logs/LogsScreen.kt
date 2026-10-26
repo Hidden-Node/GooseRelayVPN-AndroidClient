@@ -123,7 +123,7 @@ fun LogsScreen(onBack: () -> Unit) {
 
     val listState = rememberLazyListState()
     var autoScrollEnabled by rememberSaveable { mutableStateOf(true) }
-    var lastObservedItem by remember { mutableStateOf<UiLogItem?>(null) }
+    var lastObservedSignature by remember { mutableStateOf<Pair<String, Int>?>(null) }
     val context = LocalContext.current
 
     val shareLogs: () -> Unit = {
@@ -138,14 +138,18 @@ fun LogsScreen(onBack: () -> Unit) {
         }
     }
 
-
+    val currentLast = uiLogItems.lastOrNull()
+    val currentSignature = currentLast?.let { it.key to it.details.size }
+    val itemAppended = currentSignature != null && currentSignature != lastObservedSignature
+    lastObservedSignature = currentSignature
 
     LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled, activeFilter) {
-        if (!autoScrollEnabled || uiLogItems.isEmpty()) return@LaunchedEffect
-        val currentLast = uiLogItems.last()
-        val contentChanged = currentLast != lastObservedItem
-        lastObservedItem = currentLast
-        listState.scrollToLatestItem(uiLogItems.lastIndex, contentChanged = contentChanged)
+        if (!autoScrollEnabled || currentLast == null) return@LaunchedEffect
+        listState.scrollToLatestItem(
+            lastIndex = uiLogItems.lastIndex,
+            lastKey = currentLast.key,
+            itemAppended = itemAppended
+        )
     }
 
     Scaffold(
@@ -265,24 +269,37 @@ fun LogsScreen(onBack: () -> Unit) {
     }
 }
 
-private suspend fun LazyListState.scrollToLatestItem(lastIndex: Int, contentChanged: Boolean) {
+private suspend fun LazyListState.scrollToLatestItem(
+    lastIndex: Int,
+    lastKey: String,
+    itemAppended: Boolean
+) {
     if (lastIndex < 0) return
-    val initialItem = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex }
+    val initialItem = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
     if (initialItem == null) {
         scrollToItem(lastIndex)
-    } else if (!contentChanged) {
+        val item = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex } ?: return
+        val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
+        val overflow = item.offset + item.size - viewportBottom
+        if (overflow > 0) scrollBy(overflow.toFloat())
+        return
+    }
+
+    if (!itemAppended) {
         val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
         val overflow = initialItem.offset + initialItem.size - viewportBottom
         if (overflow > 0) scrollBy(overflow.toFloat())
         return
     }
+
     val currentInfo = layoutInfo
     val lastItem = withTimeoutOrNull(200) {
         snapshotFlow { layoutInfo }
             .filter { it !== currentInfo }
-            .mapNotNull { it.visibleItemsInfo.lastOrNull { item -> item.index == lastIndex } }
+            .mapNotNull { it.visibleItemsInfo.lastOrNull { item -> item.index == lastIndex && item.key == lastKey } }
             .first()
-    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex } ?: return
+    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey } ?: initialItem
+
     val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
     val overflow = lastItem.offset + lastItem.size - viewportBottom
     if (overflow > 0) scrollBy(overflow.toFloat())
