@@ -124,7 +124,6 @@ fun LogsScreen(onBack: () -> Unit) {
 
     val listState = rememberLazyListState()
     var autoScrollEnabled by rememberSaveable { mutableStateOf(true) }
-    var lastObservedSignature by remember { mutableStateOf<Pair<String, Int>?>(null) }
     val context = LocalContext.current
 
     val shareLogs: () -> Unit = {
@@ -142,13 +141,9 @@ fun LogsScreen(onBack: () -> Unit) {
     LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled, activeFilter) {
         val currentLast = uiLogItems.lastOrNull()
         if (!autoScrollEnabled || currentLast == null) return@LaunchedEffect
-        val currentSignature = currentLast.key to currentLast.details.size
-        val itemAppended = currentSignature != lastObservedSignature
-        lastObservedSignature = currentSignature
         listState.scrollToLatestItem(
             lastIndex = uiLogItems.lastIndex,
-            lastKey = currentLast.key,
-            itemAppended = itemAppended
+            lastKey = currentLast.key
         )
     }
 
@@ -271,20 +266,19 @@ fun LogsScreen(onBack: () -> Unit) {
 
 private suspend fun LazyListState.scrollToLatestItem(
     lastIndex: Int,
-    lastKey: String,
-    itemAppended: Boolean
+    lastKey: String
 ) {
     if (lastIndex < 0) return
     val initialItem = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
-    if (initialItem == null) {
-        scrollToItem(lastIndex)
-        val item = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
-        if (item != null) {
-            adjustOverflow(item)
-            return
-        }
-    } else if (!itemAppended) {
+    if (initialItem != null) {
         adjustOverflow(initialItem)
+        return
+    }
+
+    scrollToItem(lastIndex)
+    val item = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
+    if (item != null) {
+        adjustOverflow(item)
         return
     }
 
@@ -294,7 +288,7 @@ private suspend fun LazyListState.scrollToLatestItem(
             .filter { it !== currentInfo }
             .mapNotNull { it.visibleItemsInfo.lastOrNull { item -> item.index == lastIndex && item.key == lastKey } }
             .first()
-    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey } ?: initialItem ?: return
+    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey } ?: return
 
     adjustOverflow(lastItem)
 }
@@ -481,7 +475,7 @@ internal fun buildUiLogItems(
 
     entries.forEach { entry ->
         val parsed = parsedCache.getOrPut(entry) { parseLine(entry.line) }
-        val startsNewBlock = parsed.timestamp != null || parsed.explicitSeverity || pendingSource == null
+        val startsNewBlock = parsed.timestamp != null || parsed.explicitSeverity || pendingSource == null || pendingSource != entry.source
 
         if (startsNewBlock) {
             flushPending()
