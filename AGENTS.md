@@ -30,7 +30,7 @@ This client: <https://github.com/ArashAfkandeh/GooseRelayVPN-AndroidClient>
             ↓
 ┌─────────────────────────────────────────────┐
 │   VPN Service & Go Core                     │
-│  tun2socks │ GooseRelay Core (Go mobile)    │
+│  gVisor TUN bridge │ GooseRelay Core (Go)   │
 └─────────────────────────────────────────────┘
             ↓
 ┌─────────────────────────────────────────────┐
@@ -51,19 +51,18 @@ This client: <https://github.com/ArashAfkandeh/GooseRelayVPN-AndroidClient>
   - `data/local/` — Room (`AppDatabase` v4, `ProfileEntity`,
     `ProfileDao`, `ProfileMigrations`).
   - `data/repository/` — `ProfileRepository` (Hilt `@Singleton`).
-  - `dns/` — Kotlin FakeDNS interceptor (separate from the Go-side
-    FakeDNS in `mobile/tun/`).
   - `di/` — Hilt `AppModule`.
   - `util/` — `VpnManager` (singleton bridge between UI and Go
     core), `ConfigGenerator` (profile → JSON config),
     `GlobalSettingsStore` (DataStore-backed).
 - `mobile/` — Go mobile bridge, gomobile bind target:
   - `mobile/mobile.go` — `StartClient` / `StopClient` /
-    `StartTun` / `StopTun` / `StartTunBridge` / `StopTunBridge`
+    `StartTunGvisor` / `StopTunGvisor` / `IsTunGvisorRunning`
     exported to Kotlin via `mobile.Mobile.*`.
-  - `mobile/tun/` — FakeDNS proxy (`fakedns_proxy.go`),
-    DNS mapper (`dns_mapper.go`), `tun_api.go` (exported
-    `StartFakeDNSProxy` etc.).
+  - `mobile/tun/` — gVisor TUN bridge (`gvisor_bridge.go`),
+    in-process fake-IP DNS mapper/responder (`gvisor_dns.go`),
+    SOCKS5 dialer (`gvisor_socks5.go`), bridge lifecycle and API
+    (`gvisor_api.go`, `gvisor_state.go`).
 - `internal/` — upstream Go core (carrier, session, socks, config,
   etc.). **Treat as read-only when working on the Android client.**
 - `apps_script/` — Google Apps Script deployment that fronts the
@@ -138,10 +137,9 @@ require a connected emulator or device; CI does not run them.
 - Exported functions PascalCase (gomobile convention). Logger uses
   `log.Printf("[prefix] ...")` with brackets, e.g. `[TUN-API]`,
   `[client]`, `[socks]`.
-- Mutex discipline: `mu` guards app state (`running`, `tunActive`,
-  `tunBridgeRunning`, `cancelFn`, `socksLn`, `clientDone`). `engineMu`
-  guards the tun2socks engine Start/Stop. Take them in the same
-  order every time to avoid deadlocks.
+- Mutex discipline: `mu` guards app state (`running`,
+  `cancelFn`, `socksLn`, `clientDone`). `bytesMu` guards bandwidth
+  counters.
 - Errors wrapped with `fmt.Errorf("...: %w", err)`.
 
 ### Build / CI
@@ -166,10 +164,19 @@ require a connected emulator or device; CI does not run them.
   `ProfileMigrations.ALL` (see `data/local/ProfileMigrations.kt`).
   A missing migration will crash the app at launch for any user
   whose DB schema version is lower than the new one.
-- **`engine.Stop()` panics.** The `recover()` blocks in
-  `mobile.go`'s `StopTun`/`StopTunBridge` are load-bearing — they
-  mask a tun2socks panic on stop that previously SIGSEGV'd the app
-  (commit `41c3eef`). Don't remove them.
+- **gVisor fd lifecycle.** The gVisor bridge duplicates the TUN file
+  descriptor (`gvisorDupFd`) internally and closes its duplicated fd on
+  stop; Android's `vpnInterface` ParcelFileDescriptor must be closed
+  separately in `GooseRelayVpnService.stopVpn()` AFTER Go core stops.
+- **DNS peer address advert (`198.18.0.2`).** The gVisor bridge
+  answers every UDP/53 packet locally with fake IPs from `240.0.0.0/4`.
+  Never advertise the TUN's own address (`198.18.0.1`): the Linux kernel
+  delivers locally-destined traffic to the loopback interface, so DNS
+  packets would never reach the TUN fd.
+- **Fake IP pool (`240.0.0.0/4`).** The in-bridge DNS mapper assigns fake
+  IPs in `240.0.0.0/4`. Android routes `0.0.0.0/0` through the TUN, and
+  gVisor intercepts these fake IPs on TCP connect, mapping them back to
+  domain names for remote SOCKS5 resolution at the exit node.
 - **`network_security_config.xml` allows cleartext globally.**
   Tightening this is on the roadmap; don't add new `http://`
   fetches to production paths without revisiting this config.
