@@ -123,7 +123,6 @@ fun LogsScreen(onBack: () -> Unit) {
 
     val listState = rememberLazyListState()
     var autoScrollEnabled by rememberSaveable { mutableStateOf(true) }
-    var lastObservedSignature by remember { mutableStateOf<Pair<String, Int>?>(null) }
     val context = LocalContext.current
 
     val shareLogs: () -> Unit = {
@@ -141,13 +140,9 @@ fun LogsScreen(onBack: () -> Unit) {
     LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled, activeFilter) {
         val currentLast = uiLogItems.lastOrNull()
         if (!autoScrollEnabled || currentLast == null) return@LaunchedEffect
-        val currentSignature = currentLast.key to currentLast.details.size
-        val itemAppended = currentSignature != lastObservedSignature
-        lastObservedSignature = currentSignature
         listState.scrollToLatestItem(
             lastIndex = uiLogItems.lastIndex,
-            lastKey = currentLast.key,
-            itemAppended = itemAppended
+            lastKey = currentLast.key
         )
     }
 
@@ -270,27 +265,28 @@ fun LogsScreen(onBack: () -> Unit) {
 
 private suspend fun LazyListState.scrollToLatestItem(
     lastIndex: Int,
-    lastKey: String,
-    itemAppended: Boolean
+    lastKey: String
 ) {
     if (lastIndex < 0) return
     val initialItem = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
     if (initialItem == null) {
         scrollToItem(lastIndex)
-    } else if (!itemAppended) {
-        val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
-        val overflow = initialItem.offset + initialItem.size - viewportBottom
-        if (overflow > 0) scrollBy(overflow.toFloat())
-        return
+        val item = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
+        if (item != null) {
+            val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
+            val overflow = item.offset + item.size - viewportBottom
+            if (overflow > 0) scrollBy(overflow.toFloat())
+            return
+        }
     }
 
     val currentInfo = layoutInfo
-    val lastItem = withTimeoutOrNull(200) {
+    val lastItem = withTimeoutOrNull(100) {
         snapshotFlow { layoutInfo }
             .filter { it !== currentInfo }
             .mapNotNull { it.visibleItemsInfo.lastOrNull { item -> item.index == lastIndex && item.key == lastKey } }
             .first()
-    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey } ?: return
+    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey } ?: initialItem ?: return
 
     val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
     val overflow = lastItem.offset + lastItem.size - viewportBottom
