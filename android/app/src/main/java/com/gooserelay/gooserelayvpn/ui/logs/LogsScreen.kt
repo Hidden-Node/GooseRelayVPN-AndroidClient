@@ -58,7 +58,6 @@ import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.VpnManager
 import java.util.Locale
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.withTimeoutOrNull
@@ -264,9 +263,12 @@ fun LogsScreen(onBack: () -> Unit) {
 
 private suspend fun LazyListState.scrollToLatestItem(lastIndex: Int) {
     if (lastIndex < 0) return
-    scrollToItem(lastIndex)
+    val initialItem = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex }
+    if (initialItem == null) {
+        scrollToItem(lastIndex)
+    }
     val currentInfo = layoutInfo
-    val lastItem = withTimeoutOrNull(200) {
+    val lastItem = withTimeoutOrNull(50) {
         snapshotFlow { layoutInfo }
             .filter { it !== currentInfo }
             .mapNotNull { it.visibleItemsInfo.lastOrNull { item -> item.index == lastIndex } }
