@@ -100,6 +100,7 @@ func gvisorPutRelayBuf(b []byte) { gvisorRelayBufPool.Put(&b) }
 var gvisorRefusalLogLast atomic.Int64
 
 var gvisorBackpressureLogLast atomic.Int64
+var gvisorBackpressureDrops atomic.Uint64
 
 // Total DNS queries answered locally across all UDP endpoints (shared
 // so port-randomized queries don't reset the rate-limit ramp).
@@ -113,6 +114,9 @@ var gvisorDNSAnswered atomic.Uint64
 // goroutine that awaits ctx and closes it on shutdown.
 func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string, mapper *gvisorDNSMapper) (*stack.Stack, error) {
 	gvisorDNSAnswered.Store(0)
+	gvisorBackpressureDrops.Store(0)
+	gvisorBackpressureLogLast.Store(0)
+	gvisorRefusalLogLast.Store(0)
 	gvisorBridgeLog("starting bridge: tunFd=%d mtu=%d socksAddr=%s", tunFd, mtu, socksAddr)
 
 	s := stack.New(stack.Options{
@@ -225,12 +229,14 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 		select {
 		case sem <- struct{}{}:
 		default:
+			drops := gvisorBackpressureDrops.Add(1)
 			now := time.Now().UnixNano()
 			last := gvisorBackpressureLogLast.Load()
 			delta := now - last
 			if delta > int64(5*time.Second) || delta < 0 {
 				if gvisorBackpressureLogLast.CompareAndSwap(last, now) {
-					gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent)", dstAddr, gvisorTCPMaxInFlight)
+					gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent, %d drops in window)", dstAddr, gvisorTCPMaxInFlight, drops)
+					gvisorBackpressureDrops.Store(0)
 				}
 			}
 			r.Complete(true) // send RST at SYN time
