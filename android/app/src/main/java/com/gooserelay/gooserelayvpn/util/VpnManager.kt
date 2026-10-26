@@ -32,6 +32,7 @@ object VpnManager {
         CORE, ANDROID
     }
     data class LogEntry(
+        val seq: Long,
         val line: String,
         val source: LogSource
     )
@@ -40,6 +41,7 @@ object VpnManager {
     val state: StateFlow<VpnState> = _state.asStateFlow()
 
     private val logBuffer = ArrayDeque<LogEntry>(MAX_LOG_LINES)
+    private var logBufferVersion = 0L
     private val _logEntries = MutableStateFlow<List<LogEntry>>(emptyList())
     val logEntries: StateFlow<List<LogEntry>> = _logEntries.asStateFlow()
 
@@ -162,9 +164,10 @@ object VpnManager {
         if (!stampRegex.containsMatchIn(normalizedLine)) {
             normalizedLine = "${nowStamp()} $normalizedLine"
         }
-        val entry = LogEntry(normalizedLine, source)
         val snapshot: List<LogEntry>
         synchronized(logBuffer) {
+            logBufferVersion++
+            val entry = LogEntry(logBufferVersion, normalizedLine, source)
             logBuffer.addLast(entry)
             if (logBuffer.size > MAX_LOG_LINES) logBuffer.removeFirst()
             snapshot = logBuffer.toList()
@@ -180,6 +183,7 @@ object VpnManager {
 
     fun clearLogs() {
         synchronized(logBuffer) {
+            logBufferVersion++
             logBuffer.clear()
         }
         _logEntries.value = emptyList()
