@@ -3,6 +3,8 @@ package com.gooserelay.gooserelayvpn
 import com.google.common.truth.Truth.assertThat
 import com.gooserelay.gooserelayvpn.util.VpnManager
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
@@ -71,5 +73,13 @@ class VpnManagerLogBufferTest {
         assertThat(finished).isTrue()
         assertThat(failure.get()).isNull()
         assertThat(VpnManager.logEntries.value).hasSize(2000)
+    }
+
+    @Test
+    fun `emittedEntriesCarryStrictlyIncreasingUniqueSequenceNumbers`() {
+        repeat(5) { index -> VpnManager.appendCoreLog("INFO seq $index") }
+        val entries = VpnManager.logEntries.value
+        assertTrue(entries.zipWithNext().all { (a, b) -> a.seq < b.seq })
+        assertEquals(entries.size, entries.map { it.seq }.distinct().size)
     }
 }

@@ -2,6 +2,7 @@ package com.gooserelay.gooserelayvpn.ui.logs
 
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +57,8 @@ import com.gooserelay.gooserelayvpn.ui.theme.MdvRadius
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.VpnManager
 import java.util.Locale
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 
 private enum class LogFilter(val labelRes: Int) {
     ALL(R.string.logs_filter_all),
@@ -61,7 +66,7 @@ private enum class LogFilter(val labelRes: Int) {
     ANDROID(R.string.logs_filter_android)
 }
 
-private enum class LogSeverity {
+internal enum class LogSeverity {
     ERROR,
     WARN,
     INFO,
@@ -70,14 +75,14 @@ private enum class LogSeverity {
     PLAIN
 }
 
-private data class ParsedLogFields(
+internal data class ParsedLogFields(
     val timestamp: String?,
     val message: String,
     val severity: LogSeverity,
     val explicitSeverity: Boolean
 )
 
-private data class UiLogItem(
+internal data class UiLogItem(
     val key: String,
     val source: VpnManager.LogSource,
     val timestamp: String?,
@@ -132,11 +137,9 @@ fun LogsScreen(onBack: () -> Unit) {
 
 
 
-    LaunchedEffect(uiLogItems.size, activeFilter) {
-        if (uiLogItems.isEmpty()) return@LaunchedEffect
-        if (autoScrollEnabled) {
-            listState.scrollToItem(uiLogItems.size - 1)
-        }
+    LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled) {
+        if (!autoScrollEnabled || uiLogItems.isEmpty()) return@LaunchedEffect
+        listState.scrollToLatestItem(uiLogItems.lastIndex)
     }
 
     Scaffold(
@@ -254,6 +257,17 @@ fun LogsScreen(onBack: () -> Unit) {
             }
         }
     }
+}
+
+private suspend fun LazyListState.scrollToLatestItem(lastIndex: Int) {
+    if (lastIndex < 0) return
+    scrollToItem(lastIndex)
+    val lastItem = snapshotFlow { layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex } }
+        .filterNotNull()
+        .first()
+    val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
+    val overflow = lastItem.offset + lastItem.size - viewportBottom
+    if (overflow > 0) scrollBy(overflow.toFloat())
 }
 
 @Composable
@@ -392,9 +406,9 @@ private fun buildLogStats(items: List<UiLogItem>): LogStats {
     return LogStats(total = items.size, errors = errors, warnings = warnings)
 }
 
-private fun buildUiLogItems(
+internal fun buildUiLogItems(
     entries: List<VpnManager.LogEntry>,
-    parsedCache: MutableMap<VpnManager.LogEntry, ParsedLogFields>
+    parsedCache: MutableMap<VpnManager.LogEntry, ParsedLogFields> = mutableMapOf()
 ): List<UiLogItem> {
     if (entries.isEmpty()) {
         parsedCache.clear()
@@ -430,7 +444,7 @@ private fun buildUiLogItems(
         pendingKey = ""
     }
 
-    entries.forEachIndexed { index, entry ->
+    entries.forEach { entry ->
         val parsed = parsedCache.getOrPut(entry) { parseLine(entry.line) }
         val startsNewBlock = parsed.timestamp != null || parsed.explicitSeverity || pendingSource == null
 
@@ -440,7 +454,7 @@ private fun buildUiLogItems(
             pendingTimestamp = parsed.timestamp
             pendingSeverity = parsed.severity
             pendingMessage = parsed.message
-            pendingKey = "$index:${entry.source}:${entry.line.hashCode()}"
+            pendingKey = entry.seq.toString()
         } else {
             pendingDetails.add(entry.line)
             pendingSeverity = prioritizeSeverity(pendingSeverity, parsed.severity)
