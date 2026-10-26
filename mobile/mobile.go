@@ -18,23 +18,14 @@ import (
 	"github.com/kianmhz/GooseRelayVPN/mobile/tun"
 	"github.com/things-go/go-socks5"
 	"github.com/things-go/go-socks5/statute"
-	"github.com/xjasonlyu/tun2socks/v2/engine"
 )
 
 var (
-	mu               sync.Mutex
-	cancelFn         context.CancelFunc
-	socksLn          net.Listener
-	running          bool
-	tunActive        bool
-	tunBridgeRunning bool
-	clientDone       chan struct{}
-	engineMu         sync.Mutex // Protects tun2socks engine Start/Stop
-
-	// tunOwnedFd is the most recently dup'd TUN fd inserted into the
-	// tun2socks engine. It is -1 when no fd is owned. Guarded by engineMu
-	// (so it is always accessed together with engine.Start/Stop).
-	tunOwnedFd int32 = -1
+	mu         sync.Mutex
+	cancelFn   context.CancelFunc
+	socksLn    net.Listener
+	running    bool
+	clientDone chan struct{}
 )
 
 var (
@@ -242,15 +233,13 @@ func StopClient() {
 			// Android caller (GooseRelayVpnService.stopVpn) caps total
 			// disconnect with a 5s outer join, so we return promptly
 			// here and let the outer caller decide whether to log a
-			// "stop timed out" message. StopTun/StopTunBridge below are
+			// "stop timed out" message. StopTunGvisor below is
 			// idempotent and safe to call even if the carrier is still
 			// winding down.
 			log.Printf("[client] carrier shutdown exceeded 1s, proceeding with TUN teardown")
 		}
 	}
 
-	StopTun()
-	StopTunBridge()
 	StopTunGvisor()
 }
 
@@ -258,118 +247,6 @@ func IsRunning() bool {
 	mu.Lock()
 	defer mu.Unlock()
 	return running
-}
-
-func StartTun(fd int64, proxyAddr string) error {
-	safeFd, ok := dupFd(int(fd))
-	if !ok {
-		return fmt.Errorf("tun fd duplication failed (fd exhaustion); refusing to start TUN to avoid double-close")
-	}
-
-	key := &engine.Key{
-		Proxy:  "socks5://" + proxyAddr,
-		Device: fmt.Sprintf("fd://%d", safeFd),
-		MTU:    1500,
-	}
-
-	engineMu.Lock()
-	// If a previous fd is still tracked, close it now. This guards
-	// against the (unlikely) case where StartTun is called twice without
-	// an intervening StopTun.
-	if tunOwnedFd >= 0 {
-		closeTunFd(tunOwnedFd)
-	}
-	engine.Insert(key)
-	engine.Start()
-	tunOwnedFd = int32(safeFd)
-	engineMu.Unlock()
-
-	mu.Lock()
-	tunActive = true
-	mu.Unlock()
-
-	return nil
-}
-
-func StopTun() {
-	mu.Lock()
-	if !tunActive {
-		mu.Unlock()
-		return
-	}
-	tunActive = false
-	mu.Unlock()
-
-	engineMu.Lock()
-	defer engineMu.Unlock()
-	func() {
-		defer func() { recover() }()
-		engine.Stop()
-	}()
-	if tunOwnedFd >= 0 {
-		closeTunFd(tunOwnedFd)
-		tunOwnedFd = -1
-	}
-}
-
-// TUN Bridge wrapper functions (calls mobile/tun subpackage)
-
-// StartTunBridge starts the TUN bridge with DNS interception using FakeDNS proxy.
-func StartTunBridge(tunFd int64, mtu int64, socksAddr, socksUser, socksPass string) error {
-	proxyAddr, err := tun.StartFakeDNSProxy(socksAddr, socksUser, socksPass)
-	if err != nil {
-		return err
-	}
-
-	safeFd, ok := dupFd(int(tunFd))
-	if !ok {
-		return fmt.Errorf("tun fd duplication failed (fd exhaustion); refusing to start TUN to avoid double-close")
-	}
-
-	key := &engine.Key{
-		Proxy:  "socks5://" + proxyAddr,
-		Device: fmt.Sprintf("fd://%d", safeFd),
-		MTU:    int(mtu),
-	}
-
-	engineMu.Lock()
-	if tunOwnedFd >= 0 {
-		closeTunFd(tunOwnedFd)
-	}
-	engine.Insert(key)
-	engine.Start()
-	tunOwnedFd = int32(safeFd)
-	engineMu.Unlock()
-
-	mu.Lock()
-	tunBridgeRunning = true
-	mu.Unlock()
-
-	return nil
-}
-
-// StopTunBridge stops the TUN bridge
-func StopTunBridge() {
-	mu.Lock()
-	if !tunBridgeRunning {
-		mu.Unlock()
-		return
-	}
-	tunBridgeRunning = false
-	mu.Unlock()
-
-	engineMu.Lock()
-	func() {
-		defer func() { recover() }()
-		engine.Stop()
-	}()
-	if tunOwnedFd >= 0 {
-		closeTunFd(tunOwnedFd)
-		tunOwnedFd = -1
-	}
-	engineMu.Unlock()
-
-	tun.StopFakeDNSProxy()
 }
 
 // StartTunGvisor starts the gVisor TUN bridge (see mobile/tun).

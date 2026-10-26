@@ -54,7 +54,7 @@ The app wraps this flow in Android `VpnService` so selected/full traffic can be 
 ## Key Features
 
 ### VPN & Tunneling
-- 🔐 Android VPN integration (`VpnService` + tun2socks)
+- 🔐 Android VPN integration (Android `VpnService` + gVisor TUN bridge)
 - 🔌 SOCKS5 proxy endpoint (configurable host:port)
 - 🛡️ AES-256-GCM encryption with per-profile keys
 - 📍 Domain fronting through Google infrastructure
@@ -78,14 +78,14 @@ The app wraps this flow in Android `VpnService` so selected/full traffic can be 
 ### User Interface
 - 🏠 **Home tab** - Real-time connection status with telemetry cards
 - 📊 **Live logs** - Core and app-level diagnostic logs
-- ⚙️ **Settings tab** - Global settings (connection mode, split tunneling, internet sharing, DNS)
+- ⚙️ **Settings tab** - Global settings (connection mode, split tunneling, internet sharing)
 - 🌍 **Profile settings** - Per-profile configuration (opened from Profiles)
 - 🎨 Material Design 3 with dark theme
 
 ### System Integration
 - 📱 **Internet sharing** - Share VPN via SOCKS/HTTP proxy (LAN)
 - 🔒 **Split tunneling** - Include/exclude specific apps from VPN
-- 🌐 **Fake DNS** - Local DNS interception and resolution
+- 🌐 **Local Fake-IP DNS** - In-bridge DNS answering with fake IPs; domain resolution happens remotely at the exit node
 - 🔋 **Low overhead** - Efficient Go-based core
 
 ## Configuration Model (Profile)
@@ -187,7 +187,6 @@ Supported endpoints:
 ### Tunneling
 - **Split Tunneling**: Enable per-app VPN selection (default: disabled)
 - **Mode**: Include selected apps or exclude selected apps
-- **Fake DNS**: Intercept DNS queries locally (default: enabled)
 
 ### Internet Sharing
 - **Share VPN via Network**: Enable/disable
@@ -196,7 +195,6 @@ Supported endpoints:
 - **Auth**: Optional username/password for proxies
 
 ### Advanced
-- **Custom DNS Servers**: Comma-separated DNS IP addresses
 - **Auto-save**: Changes persist automatically (default: enabled in v1.7.1+)
 
 ### Clipboard Export/Import (v1.7.1+) — **NEW**
@@ -402,7 +400,7 @@ Release produces:
 ┌─────────────────────────────────────────────┐
 │   VPN Service & Go Core                     │
 │  ┌──────────────────────────────────────┐   │
-│  │ tun2socks │ GooseRelay Core (Go)     │   │
+│  │ gVisor bridge │ GooseRelay Core (Go) │   │
 │  └──────────────────────────────────────┘   │
 └─────────────────────────────────────────────┘
             ↓
@@ -430,7 +428,7 @@ Release produces:
 - ✅ Improved error handling for imports
 
 ### v1.0.0+ — Earlier Releases
-- VPN service with tun2socks
+- VPN service with gVisor TUN bridge
 - Profile management
 - Live logs and diagnostics
 - Split tunneling
@@ -444,13 +442,13 @@ Release produces:
 - **Architecture**: MVVM with Clean Architecture
 - **Database**: Room ORM
 - **DI**: Hilt
-- **VPN**: Android VpnService API, tun2socks
+- **VPN**: Android VpnService API, gVisor TUN bridge
 - **Build**: Gradle 8.13, Android Gradle Plugin 8.13.0
 
 ### Go Core
 - **Version**: 1.25.0 (upgraded from 1.23.1)
 - **Crypto**: AES-256-GCM (golang.org/x/crypto, indirect)
-- **Networking**: golang.org/x/net 0.52.0, tun2socks
+- **Networking**: golang.org/x/net 0.52.0, gVisor netstack
 - **Compression**: klauspost/compress (indirect)
 - **Logging**: Uber zap (indirect)
 
@@ -458,7 +456,7 @@ Release produces:
 
 **Go:**
 - `github.com/things-go/go-socks5` — SOCKS5 server
-- `github.com/xjasonlyu/tun2socks/v2` — TUN device handler
+- `gvisor.dev/gvisor/pkg/tcpip` — gVisor netstack TUN bridge
 - `golang.org/x/net v0.52.0` — Networking utilities
 - `golang.org/x/mobile v0.0.0-20260312152759-81488f6aeb60` — Go mobile binding
 - `golang.org/x/crypto v0.49.0` — Cryptography
@@ -479,7 +477,7 @@ See `go.mod`, `go.sum`, and `android/build.gradle.kts` for complete lists.
 
 3. **Community**
    - Go, Kotlin, Jetpack Compose teams
-   - tun2socks, SOCKS5, and networking library authors
+   - gVisor netstack, SOCKS5, and networking library authors
 
 ## License
 

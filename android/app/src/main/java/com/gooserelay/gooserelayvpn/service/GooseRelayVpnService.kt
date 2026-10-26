@@ -61,20 +61,6 @@ class GooseRelayVpnService : VpnService() {
         private val BROWSER_COMPANION_PACKAGES = setOf(
             "com.android.chrome"           // system Chrome on some OEMs
         )
-
-        // Which TUN engine handles the traffic for one session. Exactly one
-        // engine runs per session - selectEngine() is the only place that
-        // decides, so "both at once" is impossible by construction.
-        internal enum class Engine { GVISOR, BRIDGE, TUN2SOCKS }
-
-        // selectEngine maps the two user-facing switches to exactly one
-        // engine. The gVisor engine wins over FakeDNS: the bridge answers
-        // DNS locally, so the FakeDNS path would be dead weight underneath it.
-        internal fun selectEngine(gvisorEnabled: Boolean, fakeDnsEnabled: Boolean): Engine = when {
-            gvisorEnabled -> Engine.GVISOR
-            fakeDnsEnabled -> Engine.BRIDGE
-            else -> Engine.TUN2SOCKS
-        }
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -166,7 +152,7 @@ class GooseRelayVpnService : VpnService() {
                 val proxyMode = globalSettings.connectionMode.equals("PROXY", ignoreCase = true)
 
                 VpnManager.appendLog("Loading profile: ${profile.name}")
-                VpnManager.appendLog("Global Settings Loaded - connectionMode: ${globalSettings.connectionMode}, customDnsServers: '${globalSettings.customDnsServers}', fakeDnsEnabled: ${globalSettings.fakeDnsEnabled}, gvisorEngineEnabled=${globalSettings.gvisorEngineEnabled}")
+                VpnManager.appendLog("Global Settings Loaded - connectionMode: ${globalSettings.connectionMode}")
 
                 // Check if Go core is still running from previous session
                 ensureGoCoreStopped()
@@ -253,52 +239,14 @@ class GooseRelayVpnService : VpnService() {
                     return@launch
                 }
 
-                val engine = selectEngine(
-                    globalSettings.gvisorEngineEnabled,
-                    globalSettings.fakeDnsEnabled
-                )
-                VpnManager.appendLog("TUN engine: $engine")
-
-                // DNS configuration: use custom DNS servers if provided, otherwise use defaults.
-                // For remote DNS resolution (to bypass filtered DNS in Iran), configure custom
-                // DNS servers that are accessible through the VPN tunnel (e.g., your VPS IP or
-                // public DNS servers that will be routed through the tunnel).
-                val vpnDnsServers = if (engine == Engine.GVISOR) {
-                    // The gVisor bridge answers every UDP/53 datagram locally
-                    // (fake-IP DNS), so the app must send DNS to a peer
-                    // address inside the TUN. NEVER advertise the TUN's own
-                    // address (198.18.0.1): the kernel delivers
-                    // locally-destined traffic to loopback and it never
-                    // reaches the TUN fd, so DNS would go unanswered.
-                    listOf("198.18.0.2").also {
-                        VpnManager.appendLog("Using gVisor bridge DNS: 198.18.0.2")
-                    }
-                } else if (globalSettings.customDnsServers.isNotBlank()) {
-                    globalSettings.customDnsServers
-                        .split(",")
-                        .map { it.trim() }
-                        .filter { it.isNotEmpty() }
-                        .also { servers ->
-                            VpnManager.appendLog("Using custom DNS servers: ${servers.joinToString()}")
-                        }
-                } else if (engine == Engine.BRIDGE) {
-                    // In fake DNS mode, point to TUN bridge DNS
-                    listOf("172.19.0.2").also {
-                        VpnManager.appendLog("Using Go TUN bridge DNS: 172.19.0.2")
-                    }
-                } else {
-                    // Default: multiple public resolvers to reduce startup stalls on filtered networks.
-                    // Note: In TUN mode, DNS resolution happens on the client side before traffic
-                    // enters the tunnel. For true remote DNS resolution, either:
-                    // 1. Use Proxy mode (socks5h clients handle DNS remotely), or
-                    // 2. Set custom DNS to your VPS IP (if running a DNS server there), or
-                    // 3. Use a fake DNS approach (advanced, requires additional setup)
-                    listOf(
-                        "1.1.1.1",
-                        "8.8.8.8",
-                        "9.9.9.9",
-                        "94.140.14.14"
-                    ).also { VpnManager.appendLog("Using default DNS servers") }
+                // The gVisor bridge answers every UDP/53 datagram locally
+                // with fake IPs, so the app always sends DNS to a peer
+                // address inside the TUN. NEVER advertise the TUN's own
+                // address (198.18.0.1): the kernel delivers locally-destined
+                // traffic to loopback and it never reaches the TUN fd, so DNS
+                // would go unanswered.
+                val vpnDnsServers = listOf("198.18.0.2").also {
+                    VpnManager.appendLog("Using gVisor bridge DNS: 198.18.0.2")
                 }
 
                 val builder = Builder()
@@ -308,23 +256,15 @@ class GooseRelayVpnService : VpnService() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
                     builder.setUnderlyingNetworks(null) // API 22+: no-op fix for Android 5.0 crash
                 }
-                
-                if (engine == Engine.GVISOR) {
-                    builder.addAddress("198.18.0.1", 30)
-                } else if (engine == Engine.BRIDGE) {
-                    builder.addAddress("172.19.0.1", 30)
-                } else {
-                    builder.addAddress("10.0.0.2", 32)
-                }
-                
+
+                builder.addAddress("198.18.0.1", 30)
                 builder.addRoute("0.0.0.0", 0)
 
                 // Prevent IPv6 DNS leaks: if we don't route IPv6 and provide an IPv6 DNS,
                 // Android may leak DNS requests to the cellular network's IPv6 DNS server,
                 // resulting in hijacked IPs like 10.10.34.36 from the ISP.
                 try {
-                    val ipv6Addr = if (engine == Engine.GVISOR) "2001:db8::1" else "fc00::1"
-                    builder.addAddress(ipv6Addr, 128)
+                    builder.addAddress("2001:db8::1", 128)
                     builder.addRoute("::", 0)
                 } catch (e: Exception) {
                     VpnManager.appendLog("IPv6 routing skipped: ${e.message}")
@@ -332,35 +272,24 @@ class GooseRelayVpnService : VpnService() {
 
                 vpnDnsServers.forEach { builder.addDnsServer(it) }
                 VpnManager.appendLog("VPN DNS servers: ${vpnDnsServers.joinToString()}")
-                
-                // In fake DNS mode, route fake IP range through VPN
-                // The legacy FakeDNS range (198.18.0.0/16) only exists on
-                // the FakeDNS arm; the gVisor arm maps 240.0.0.0/4 inside
-                // the bridge and needs no extra route.
-                if (engine == Engine.BRIDGE) {
-                    builder.addRoute("198.18.0.0", 16)
-                    VpnManager.appendLog("Added route for fake DNS range: 198.18.0.0/16")
-                }
 
-                if (engine == Engine.GVISOR) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        builder.setMetered(true)
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        // Keep LAN and link-local traffic off the tunnel. The
-                        // TUN is 198.18.0.1/30, so it overlaps none of these.
-                        // Excluding self is already done above.
-                        // IpPrefix has no String constructor: pass the parsed
-                        // numeric address (these literals never do a DNS lookup).
-                        listOf(
-                            IpPrefix(InetAddress.getByName("10.0.0.0"), 8),
-                            IpPrefix(InetAddress.getByName("172.16.0.0"), 12),
-                            IpPrefix(InetAddress.getByName("192.168.0.0"), 16),
-                            IpPrefix(InetAddress.getByName("169.254.0.0"), 16),
-                            IpPrefix(InetAddress.getByName("fc00::"), 7),
-                            IpPrefix(InetAddress.getByName("fe80::"), 10),
-                        ).forEach { prefix -> runCatching { builder.excludeRoute(prefix) } }
-                    }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    builder.setMetered(true)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    // Keep LAN and link-local traffic off the tunnel. The
+                    // TUN is 198.18.0.1/30, so it overlaps none of these.
+                    // Excluding self is already done above.
+                    // IpPrefix has no String constructor: pass the parsed
+                    // numeric address (these literals never do a DNS lookup).
+                    listOf(
+                        IpPrefix(InetAddress.getByName("10.0.0.0"), 8),
+                        IpPrefix(InetAddress.getByName("172.16.0.0"), 12),
+                        IpPrefix(InetAddress.getByName("192.168.0.0"), 16),
+                        IpPrefix(InetAddress.getByName("169.254.0.0"), 16),
+                        IpPrefix(InetAddress.getByName("fc00::"), 7),
+                        IpPrefix(InetAddress.getByName("fe80::"), 10),
+                    ).forEach { prefix -> runCatching { builder.excludeRoute(prefix) } }
                 }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -420,69 +349,34 @@ class GooseRelayVpnService : VpnService() {
 
                 VpnManager.appendLog("TUN interface established (fd=${vpnInterface!!.fd})")
 
-                // Start TUN bridge (either gVisor, Go TUN with DNS interception, or standard tun2socks)
-                when (engine) {
-                    Engine.GVISOR -> {
-                        try {
-                            VpnManager.appendLog("Starting gVisor TUN bridge...")
-                            mobile.Mobile.startTunGvisor(
-                                vpnInterface!!.fd.toLong(),
-                                1500L,
-                                "127.0.0.1:$socksPort",
-                                profile.socksUser,
-                                profile.socksPass,
-                                logFile.absolutePath,
-                            )
-                            VpnManager.appendLog("gVisor TUN bridge started (DNS answered locally)")
-                            // Watchdog: if the bridge dies while the UI still
-                            // shows "connected", tear the session down
-                            // instead of black-holing traffic.
-                            gvisorWatchdogJob?.cancel()
-                            gvisorWatchdogJob = serviceScope.launch {
-                                while (isActive) {
-                                    delay(2_000)
-                                    if (isStopping.get()) break
-                                    if (!mobile.Mobile.isTunGvisorRunning()) {
-                                        VpnManager.appendLog("gVisor engine stopped unexpectedly; disconnecting")
-                                        stopVpn()
-                                        break
-                                    }
-                                }
+                // Start TUN bridge (gVisor)
+                try {
+                    VpnManager.appendLog("Starting gVisor TUN bridge...")
+                    mobile.Mobile.startTunGvisor(
+                        vpnInterface!!.fd.toLong(),
+                        1500L,
+                        "127.0.0.1:$socksPort",
+                        profile.socksUser,
+                        profile.socksPass,
+                        logFile.absolutePath,
+                    )
+                    VpnManager.appendLog("gVisor TUN bridge started (DNS answered locally)")
+                    gvisorWatchdogJob?.cancel()
+                    gvisorWatchdogJob = serviceScope.launch {
+                        while (isActive) {
+                            delay(2_000)
+                            if (isStopping.get()) break
+                            if (!mobile.Mobile.isTunGvisorRunning()) {
+                                VpnManager.appendLog("gVisor engine stopped unexpectedly; disconnecting")
+                                stopVpn()
+                                break
                             }
-                        } catch (e: Exception) {
-                            VpnManager.appendLog("gVisor TUN bridge failed: ${e.message}")
-                            Log.e(TAG, "gVisor TUN bridge error", e)
-                            throw e
                         }
                     }
-                    Engine.BRIDGE -> {
-                        try {
-                            VpnManager.appendLog("Starting Go TUN bridge with DNS interception...")
-                            
-                            // Start TUN bridge: fd, mtu, socksAddr, socksUser, socksPass.
-                            // The Go core's SOCKS5 server enforces user/pass auth when
-                            // both fields are non-empty; we forward them so the FakeDNS
-                            // proxy can negotiate through it.
-                            mobile.Mobile.startTunBridge(
-                                vpnInterface!!.fd.toLong(),
-                                1500L,
-                                "127.0.0.1:$socksPort",
-                                profile.socksUser,
-                                profile.socksPass,
-                            )
-                            
-                            VpnManager.appendLog("Go TUN bridge started (DNS will be resolved remotely)")
-                        } catch (e: Exception) {
-                            VpnManager.appendLog("Failed to start Go TUN bridge: ${e.message}")
-                            Log.e(TAG, "TUN bridge error", e)
-                            throw e
-                        }
-                    }
-                    Engine.TUN2SOCKS -> {
-                        // Standard tun2socks bridge without DNS interception
-                        VpnManager.appendLog("Starting tun2socks bridge: TUN fd -> socks5://127.0.0.1:$socksPort")
-                        mobile.Mobile.startTun(vpnInterface!!.fd.toLong(), "127.0.0.1:$socksPort")
-                    }
+                } catch (e: Exception) {
+                    VpnManager.appendLog("gVisor TUN bridge failed: ${e.message}")
+                    Log.e(TAG, "gVisor TUN bridge error", e)
+                    throw e
                 }
 
                 // Register Network Change detection to route TUN gracefully
@@ -547,7 +441,7 @@ class GooseRelayVpnService : VpnService() {
                 VpnManager.appendLog("Stopping VPN...")
 
                 // Stop everything in Go layer via a single stopClient() call.
-                // Go's StopClient() internally handles StopTun/StopTunBridge
+                // Go's StopClient() internally handles StopTunGvisor
                 // with idempotent guards and panic recovery, so this is safe.
                 // Sibling worker (not withContext): await() is the only cancellable point; blocking stopClient() ignores cancellation and is abandoned on timeout, mirroring old Thread semantics.
                 val stopWorker = stopScope.async(Dispatchers.IO) {
@@ -642,7 +536,7 @@ class GooseRelayVpnService : VpnService() {
         // Normal path: stopVpn() already ran — Go layer guards make re-calls no-ops.
         // Force-kill path: stopVpn() was never called, so do full cleanup.
         if (!isStopping.get()) {
-            // stopClient() internally handles StopTun + StopTunBridge + cancel
+            // stopClient() internally handles StopTunGvisor + cancel
             // with idempotent guards and panic recovery.
             keepaliveJob?.cancel()
             gvisorWatchdogJob?.cancel()
