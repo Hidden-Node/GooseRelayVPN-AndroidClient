@@ -106,9 +106,10 @@ func StartClient(configPath string, logPath string) error {
 		return fmt.Errorf("open log file: %w", err)
 	}
 	origFlags := log.Flags()
+	origWriter := log.Writer()
 	defer func() {
 		log.SetFlags(origFlags)
-		log.SetOutput(os.Stderr)
+		log.SetOutput(origWriter)
 		_ = logFile.Close()
 	}()
 	log.SetFlags(0)
