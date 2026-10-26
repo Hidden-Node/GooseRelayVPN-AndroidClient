@@ -7,9 +7,14 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 enum class SplitTunnelMode { INCLUDE, EXCLUDE }
 
@@ -31,6 +36,8 @@ data class GlobalSettings(
 object GlobalSettingsStore {
     private const val TAG = "GlobalSettingsStore"
     private val Context.dataStore by preferencesDataStore(name = "global_settings")
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val storeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
 
     private val KEY_CONNECTION_MODE = stringPreferencesKey("connection_mode")
     private val KEY_SPLIT_TUNNELING_ENABLED = booleanPreferencesKey("split_tunneling_enabled")
@@ -76,11 +83,28 @@ object GlobalSettingsStore {
         Log.d(TAG, "Settings saved successfully")
     }
 
+    fun saveAsync(context: Context, settings: GlobalSettings) {
+        storeScope.launch {
+            runCatching {
+                save(context.applicationContext, settings)
+            }.onFailure { e ->
+                Log.e(TAG, "Failed to save settings asynchronously", e)
+            }
+        }
+    }
+
+    internal fun parseSplitTunnelMode(raw: String?): SplitTunnelMode {
+        if (raw == null) return SplitTunnelMode.INCLUDE
+        return runCatching {
+            SplitTunnelMode.valueOf(raw.trim().uppercase(Locale.ROOT))
+        }.getOrDefault(SplitTunnelMode.INCLUDE)
+    }
+
     private fun Preferences.toModel(): GlobalSettings {
         return GlobalSettings(
             connectionMode = this[KEY_CONNECTION_MODE] ?: "VPN",
             splitTunnelingEnabled = this[KEY_SPLIT_TUNNELING_ENABLED] ?: false,
-            splitTunnelMode = runCatching { SplitTunnelMode.valueOf(this[KEY_SPLIT_TUNNEL_MODE] ?: "INCLUDE") }.getOrDefault(SplitTunnelMode.INCLUDE),
+            splitTunnelMode = parseSplitTunnelMode(this[KEY_SPLIT_TUNNEL_MODE]),
             splitPackagesCsv = this[KEY_SPLIT_PACKAGES] ?: "",
             customDnsServers = this[KEY_CUSTOM_DNS_SERVERS] ?: "",
             fakeDnsEnabled = this[KEY_FAKE_DNS_ENABLED] ?: true,
