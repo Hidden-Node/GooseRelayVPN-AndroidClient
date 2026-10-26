@@ -1,3 +1,7 @@
+import java.io.IOException
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -128,6 +132,105 @@ android {
     lint {
         baseline = file("lint-baseline.xml")
     }
+}
+
+/**
+ * Fails the build when the gomobile AAR is missing, unreadable, or does not
+ * match the current TUN engine.
+ *
+ * The AAR is a prebuilt binary that nothing ties to the Go sources: a stale
+ * one silently links the OLD engine into the APK. CI always rebuilds it
+ * (see .github/workflows/android-ci.yml); local builds do not, so this gate
+ * is what makes "stale AAR" a build error instead of a mystery.
+ */
+val verifyMobileAar = tasks.register("verifyMobileAar") {
+    group = "verification"
+    description = "Fails when the gomobile AAR is missing or does not match the current engine."
+    outputs.upToDateWhen { false }
+    val aarFile = layout.projectDirectory.file("libs/gooserelayvpn.aar").asFile
+    doLast {
+        if (!aarFile.isFile) {
+            throw org.gradle.api.GradleException(
+                "Go mobile AAR missing: ${aarFile.absolutePath}. " +
+                    "Run the AAR build script for your platform (see android/app/libs/README.md) and rebuild."
+            )
+        }
+        try {
+            ZipFile(aarFile).use { aar ->
+                val classEntry = aar.getEntry("classes.jar")
+                    ?: throw org.gradle.api.GradleException(
+                        "Go mobile AAR is stale or invalid: classes.jar is missing from ${aarFile.absolutePath}. " +
+                            "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
+                    )
+                // The engine's gomobile symbols. startTunGvisor is the CURRENT
+                // engine; startTunBridge/stopTunBridge are the deleted
+                // tun2socks + FakeDNS engine - their presence means the AAR
+                // predates plan 056.
+                // isTunGvisorRunning is consumed by the Android watchdog
+                // (plan 054); a stale AAR without it must fail here.
+                val requiredMarkers = listOf("startTunGvisor", "isTunGvisorRunning")
+                val legacyMarkers = listOf("startTunBridge", "stopTunBridge")
+                var mobileClassFound = false
+                aar.getInputStream(classEntry).use { entryStream ->
+                    ZipInputStream(entryStream).use { classes ->
+                        var entry = classes.nextEntry
+                        while (entry != null) {
+                            if (entry.name == "mobile/Mobile.class") {
+                                mobileClassFound = true
+                                val text = classes.readBytes().toString(Charsets.ISO_8859_1)
+                                val missing = requiredMarkers.firstOrNull { !text.contains(it) }
+                                if (missing != null) {
+                                    throw org.gradle.api.GradleException(
+                                        "Go mobile AAR is stale: mobile/Mobile.class does not contain '$missing'. " +
+                                            "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
+                                    )
+                                }
+                                val legacy = legacyMarkers.firstOrNull { text.contains(it) }
+                                if (legacy != null) {
+                                    throw org.gradle.api.GradleException(
+                                        "Go mobile AAR is legacy: mobile/Mobile.class still contains '$legacy'. " +
+                                            "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
+                                    )
+                                }
+                                break
+                            }
+                            classes.closeEntry()
+                            entry = classes.nextEntry
+                        }
+                    }
+                }
+                if (!mobileClassFound) {
+                    throw org.gradle.api.GradleException(
+                        "Go mobile AAR is stale or invalid: mobile/Mobile.class is missing from ${aarFile.absolutePath}. " +
+                            "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
+                    )
+                }
+                val libraryEntry = aar.getEntry("jni/arm64-v8a/libgojni.so")
+                    ?: throw org.gradle.api.GradleException(
+                        "Go mobile AAR is stale or invalid: jni/arm64-v8a/libgojni.so is missing from ${aarFile.absolutePath}. " +
+                            "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
+                    )
+                val nativeText = aar.getInputStream(libraryEntry).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+                val nativeMarker = listOf("tun2socks", "FakeDNS").firstOrNull { nativeText.contains(it) }
+                if (nativeMarker != null) {
+                    throw org.gradle.api.GradleException(
+                        "Go mobile AAR is legacy: jni/arm64-v8a/libgojni.so contains '$nativeMarker'. " +
+                            "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
+                    )
+                }
+            }
+        } catch (e: IOException) {
+            throw org.gradle.api.GradleException(
+                "Go mobile AAR is stale or invalid: ${aarFile.absolutePath} is not a readable zip. " +
+                    "Re-run the AAR build script for your platform (see android/app/libs/README.md).",
+                e
+            )
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn(verifyMobileAar)
 }
 
 dependencies {
