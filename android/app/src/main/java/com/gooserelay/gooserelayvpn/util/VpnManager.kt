@@ -2,7 +2,6 @@ package com.gooserelay.gooserelayvpn.util
 
 import android.content.Context
 import android.content.Intent
-import android.net.TrafficStats
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.service.GooseRelayVpnService
 import kotlinx.coroutines.CoroutineScope
