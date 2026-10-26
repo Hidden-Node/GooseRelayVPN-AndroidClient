@@ -11,12 +11,12 @@ class GlobalSettingsClipboardTest {
     @Test
     fun import_redactedExportJson_parsesWithBlankCreds() {
         val json = Gson().toJson(
-            GlobalSettings(internetSharingSocksPort = 8090, fakeDnsEnabled = false)
+            GlobalSettings(internetSharingSocksPort = 8090, internetSharingHttpPort = 8095)
         )
         val parsed = parseImportedSettings(json)
         assertThat(parsed).isNotNull()
         assertThat(parsed!!.internetSharingSocksPort).isEqualTo(8090)
-        assertThat(parsed.fakeDnsEnabled).isFalse()
+        assertThat(parsed.internetSharingHttpPort).isEqualTo(8095)
         assertThat(parsed.internetSharingUser).isEqualTo("")
         assertThat(parsed.internetSharingPass).isEqualTo("")
     }
@@ -28,9 +28,6 @@ class GlobalSettingsClipboardTest {
             splitTunnelingEnabled = true,
             splitTunnelMode = SplitTunnelMode.EXCLUDE,
             splitPackagesCsv = "com.example.a,com.example.b",
-            customDnsServers = "1.1.1.1, 8.8.8.8",
-            fakeDnsEnabled = false,
-            gvisorEngineEnabled = true,
             internetSharingEnabled = true,
             internetSharingSocksPort = 8100,
             internetSharingHttpPort = 8101,
@@ -40,7 +37,6 @@ class GlobalSettingsClipboardTest {
         val json = Gson().toJson(original.copy(internetSharingUser = "", internetSharingPass = ""))
         val parsed = parseImportedSettings(json)
         assertThat(parsed).isEqualTo(original.copy(internetSharingUser = "", internetSharingPass = ""))
-        assertThat(parsed!!.gvisorEngineEnabled).isTrue()
     }
 
     @Test
@@ -64,10 +60,10 @@ class GlobalSettingsClipboardTest {
 
     @Test
     fun import_wronglyTypedValues_fallBackToDefaults() {
-        val parsed = parseImportedSettings("{\"internetSharingSocksPort\":\"not-a-number\",\"fakeDnsEnabled\":\"yes\"}")
+        val parsed = parseImportedSettings("{\"internetSharingSocksPort\":\"not-a-number\",\"internetSharingEnabled\":\"yes\"}")
         assertThat(parsed).isNotNull()
         assertThat(parsed!!.internetSharingSocksPort).isEqualTo(8090)
-        assertThat(parsed.fakeDnsEnabled).isEqualTo(true)
+        assertThat(parsed.internetSharingEnabled).isEqualTo(false)
     }
 
     @Test

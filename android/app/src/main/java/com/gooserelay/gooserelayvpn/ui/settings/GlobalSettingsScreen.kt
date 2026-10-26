@@ -336,76 +336,10 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 }
                             }
                         }
-
-                        // Custom DNS servers field
-                        OutlinedTextField(
-                            value = draft.customDnsServers,
-                            onValueChange = { draft = draft.copy(customDnsServers = it) },
-                            enabled = !draft.gvisorEngineEnabled,
-                            label = { Text("Custom DNS Servers") },
-                            placeholder = { Text("e.g., 1.1.1.1, 8.8.8.8") },
-                            supportingText = {
-                                Text(
-                                    if (draft.gvisorEngineEnabled) {
-                                        "Custom DNS is ignored when the gVisor engine is active (uses in-process fake-IP DNS)."
-                                    } else {
-                                        "Comma-separated DNS servers for VPN mode. Leave empty for defaults. " +
-                                        "For remote DNS in Iran: use your VPS IP (if running DNS server) or use Proxy mode instead."
-                                    },
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = false,
-                            minLines = 1,
-                            maxLines = 3,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Text
-                            )
-                        )
-
-                        // Fake DNS toggle
-                        RowSwitch(
-                            title = "Fake DNS (Remote Resolution)",
-                            checked = draft.fakeDnsEnabled,
-                            enabled = !draft.gvisorEngineEnabled,
-                            onChecked = { draft = draft.copy(fakeDnsEnabled = it) }
-                        )
-                        if (draft.gvisorEngineEnabled) {
-                            Text(
-                                "Fake DNS is handled by the gVisor engine (takes precedence).",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MdvColor.OnSurfaceVariant,
-                                modifier = Modifier.padding(start = MdvSpace.S3)
-                            )
-                        } else if (draft.fakeDnsEnabled) {
-                            Text(
-                                "Intercepts DNS packets and resolves hostnames at the server. " +
-                                "Best for bypassing DNS filtering in Iran. VPN mode only.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MdvColor.OnSurfaceVariant,
-                                modifier = Modifier.padding(start = MdvSpace.S3)
-                            )
-                        }
-
-                        // gVisor engine toggle
-                        RowSwitch(
-                            title = "gVisor engine",
-                            checked = draft.gvisorEngineEnabled,
-                            onChecked = { draft = draft.copy(gvisorEngineEnabled = it) }
-                        )
-                        Text(
-                            text = "Use the in-process gVisor TUN engine instead of tun2socks + FakeDNS. " +
-                                "Same tunnel and server; the bridge answers DNS locally with fake IPs. Default on; turn off to use the legacy engine until it is removed.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MdvColor.OnSurfaceVariant,
-                            modifier = Modifier.padding(start = MdvSpace.S3)
-                        )
-
-                            }
-                        }
                     }
-                    item {
+                }
+            }
+            item {
                         Card(colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh)) {
                             Column(
                                 modifier = Modifier.padding(MdvSpace.S3),
