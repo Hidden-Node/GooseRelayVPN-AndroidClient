@@ -388,21 +388,19 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                             )
                         }
 
-                        // gVisor engine toggle (experimental)
+                        // gVisor engine toggle
                         RowSwitch(
-                            title = "gVisor engine (experimental)",
+                            title = "gVisor engine",
                             checked = draft.gvisorEngineEnabled,
                             onChecked = { draft = draft.copy(gvisorEngineEnabled = it) }
                         )
-                        if (draft.gvisorEngineEnabled) {
-                            Text(
-                                text = "Use the in-process gVisor TUN engine instead of tun2socks + FakeDNS. " +
-                                    "Same tunnel and server; the bridge answers DNS locally with fake IPs. Default off.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MdvColor.OnSurfaceVariant,
-                                modifier = Modifier.padding(start = MdvSpace.S3)
-                            )
-                        }
+                        Text(
+                            text = "Use the in-process gVisor TUN engine instead of tun2socks + FakeDNS. " +
+                                "Same tunnel and server; the bridge answers DNS locally with fake IPs. Default on; turn off to use the legacy engine until it is removed.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MdvColor.OnSurfaceVariant,
+                            modifier = Modifier.padding(start = MdvSpace.S3)
+                        )
 
                             }
                         }

@@ -8,24 +8,24 @@ import org.junit.Test
 
 class GlobalSettingsGvisorTest {
     @Test
-    fun import_missingField_defaultsGvisorEngineToFalse() {
+    fun import_missingField_defaultsGvisorEngineToTrue() {
         val parsed = parseImportedSettings("{}")
         assertThat(parsed).isNotNull()
-        assertThat(parsed!!.gvisorEngineEnabled).isFalse()
+        assertThat(parsed!!.gvisorEngineEnabled).isTrue()
     }
 
     @Test
-    fun roundTrip_preservesGvisorEngineEnabledTrue() {
-        val json = Gson().toJson(GlobalSettings(gvisorEngineEnabled = true))
+    fun roundTrip_preservesGvisorEngineEnabledFalse() {
+        val json = Gson().toJson(GlobalSettings(gvisorEngineEnabled = false))
         val parsed = parseImportedSettings(json)
         assertThat(parsed).isNotNull()
-        assertThat(parsed!!.gvisorEngineEnabled).isTrue()
+        assertThat(parsed!!.gvisorEngineEnabled).isFalse()
     }
 
     @Test
     fun import_wronglyTypedGvisorEngine_fallsBackToDefault() {
         val parsed = parseImportedSettings("{\"gvisorEngineEnabled\":\"yes\"}")
         assertThat(parsed).isNotNull()
-        assertThat(parsed!!.gvisorEngineEnabled).isFalse()
+        assertThat(parsed!!.gvisorEngineEnabled).isTrue()
     }
 }
