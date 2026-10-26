@@ -339,11 +339,11 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                 }
             }
             item {
-                        Card(colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh)) {
-                            Column(
-                                modifier = Modifier.padding(MdvSpace.S3),
-                                verticalArrangement = Arrangement.spacedBy(MdvSpace.S3)
-                            ) {
+                Card(colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh)) {
+                    Column(
+                        modifier = Modifier.padding(MdvSpace.S3),
+                        verticalArrangement = Arrangement.spacedBy(MdvSpace.S3)
+                    ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,

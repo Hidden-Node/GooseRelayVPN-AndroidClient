@@ -146,8 +146,10 @@ android {
 val verifyMobileAar = tasks.register("verifyMobileAar") {
     group = "verification"
     description = "Fails when the gomobile AAR is missing or does not match the current engine."
-    outputs.upToDateWhen { false }
     val aarFile = layout.projectDirectory.file("libs/gooserelayvpn.aar").asFile
+    val markerFile = layout.buildDirectory.file("intermediates/verifyMobileAar/verified.txt")
+    inputs.file(aarFile).withPathSensitivity(PathSensitivity.NONE)
+    outputs.file(markerFile)
     doLast {
         if (!aarFile.isFile) {
             throw org.gradle.api.GradleException(
@@ -205,19 +207,24 @@ val verifyMobileAar = tasks.register("verifyMobileAar") {
                             "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
                     )
                 }
-                val libraryEntry = aar.getEntry("jni/arm64-v8a/libgojni.so")
+                val libraryEntry = aar.entries().asSequence()
+                    .firstOrNull { it.name.startsWith("jni/") && it.name.endsWith("/libgojni.so") }
                     ?: throw org.gradle.api.GradleException(
-                        "Go mobile AAR is stale or invalid: jni/arm64-v8a/libgojni.so is missing from ${aarFile.absolutePath}. " +
+                        "Go mobile AAR is stale or invalid: libgojni.so is missing from ${aarFile.absolutePath}. " +
                             "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
                     )
                 val nativeText = aar.getInputStream(libraryEntry).use { it.readBytes().toString(Charsets.ISO_8859_1) }
                 val nativeMarker = listOf("tun2socks", "FakeDNS").firstOrNull { nativeText.contains(it) }
                 if (nativeMarker != null) {
                     throw org.gradle.api.GradleException(
-                        "Go mobile AAR is legacy: jni/arm64-v8a/libgojni.so contains '$nativeMarker'. " +
+                        "Go mobile AAR is legacy: ${libraryEntry.name} contains '$nativeMarker'. " +
                             "Re-run the AAR build script for your platform (see android/app/libs/README.md)."
                     )
                 }
+            }
+            markerFile.get().asFile.apply {
+                parentFile.mkdirs()
+                writeText("ok\n")
             }
         } catch (e: IOException) {
             throw org.gradle.api.GradleException(
