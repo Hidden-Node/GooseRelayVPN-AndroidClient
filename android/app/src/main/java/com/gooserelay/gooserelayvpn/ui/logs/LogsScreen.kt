@@ -57,8 +57,11 @@ import com.gooserelay.gooserelayvpn.ui.theme.MdvRadius
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.VpnManager
 import java.util.Locale
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.withTimeoutOrNull
 
 private enum class LogFilter(val labelRes: Int) {
     ALL(R.string.logs_filter_all),
@@ -137,7 +140,7 @@ fun LogsScreen(onBack: () -> Unit) {
 
 
 
-    LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled) {
+    LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled, activeFilter) {
         if (!autoScrollEnabled || uiLogItems.isEmpty()) return@LaunchedEffect
         listState.scrollToLatestItem(uiLogItems.lastIndex)
     }
@@ -262,9 +265,13 @@ fun LogsScreen(onBack: () -> Unit) {
 private suspend fun LazyListState.scrollToLatestItem(lastIndex: Int) {
     if (lastIndex < 0) return
     scrollToItem(lastIndex)
-    val lastItem = snapshotFlow { layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex } }
-        .filterNotNull()
-        .first()
+    val currentInfo = layoutInfo
+    val lastItem = withTimeoutOrNull(200) {
+        snapshotFlow { layoutInfo }
+            .filter { it !== currentInfo }
+            .mapNotNull { it.visibleItemsInfo.lastOrNull { item -> item.index == lastIndex } }
+            .first()
+    } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex } ?: return
     val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
     val overflow = lastItem.offset + lastItem.size - viewportBottom
     if (overflow > 0) scrollBy(overflow.toFloat())
