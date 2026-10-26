@@ -229,14 +229,14 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 		select {
 		case sem <- struct{}{}:
 		default:
-			drops := gvisorBackpressureDrops.Add(1)
+			gvisorBackpressureDrops.Add(1)
 			now := time.Now().UnixNano()
 			last := gvisorBackpressureLogLast.Load()
 			delta := now - last
 			if delta > int64(5*time.Second) || delta < 0 {
 				if gvisorBackpressureLogLast.CompareAndSwap(last, now) {
+					drops := gvisorBackpressureDrops.Swap(0)
 					gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent, %d drops in window)", dstAddr, gvisorTCPMaxInFlight, drops)
-					gvisorBackpressureDrops.Store(0)
 				}
 			}
 			r.Complete(true) // send RST at SYN time
