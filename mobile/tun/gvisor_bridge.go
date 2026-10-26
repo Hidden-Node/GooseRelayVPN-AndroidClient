@@ -226,7 +226,9 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 		case sem <- struct{}{}:
 		default:
 			now := time.Now().UnixNano()
-			if last := gvisorBackpressureLogLast.Load(); now-last > int64(5*time.Second) {
+			last := gvisorBackpressureLogLast.Load()
+			delta := now - last
+			if delta > int64(5*time.Second) || delta < 0 {
 				if gvisorBackpressureLogLast.CompareAndSwap(last, now) {
 					gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent)", dstAddr, gvisorTCPMaxInFlight)
 				}
@@ -266,6 +268,9 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 	// layer answers with ICMP Port Unreachable, making browsers and QUIC
 	// clients fall back to TCP immediately instead of stalling.
 	udpFwd := udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
+		if ctx.Err() != nil {
+			return
+		}
 		id := r.ID()
 		if id.LocalPort != gvisorDNSPort {
 			// Never reached via the gate below; kept as a guard so the
@@ -299,7 +304,9 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 		// and emits ICMP Port Unreachable for this packet.
 		// Rate-limited WARN — per-packet logging is forbidden.
 		now := time.Now().UnixNano()
-		if last := gvisorRefusalLogLast.Load(); now-last > int64(10*time.Second) {
+		last := gvisorRefusalLogLast.Load()
+		delta := now - last
+		if delta > int64(10*time.Second) || delta < 0 {
 			if gvisorRefusalLogLast.CompareAndSwap(last, now) {
 				gvisorBridgeWarn("refused non-DNS UDP packet to port %d (ICMP Port Unreachable)", id.LocalPort)
 			}
