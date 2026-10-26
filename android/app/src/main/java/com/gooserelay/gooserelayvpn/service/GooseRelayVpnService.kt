@@ -343,9 +343,6 @@ class GooseRelayVpnService : VpnService() {
                 }
 
                 if (engine == Engine.GVISOR) {
-                    // 1280 is the Skirk-validated MTU for this tunnel. It must
-                    // match the value passed to the bridge below.
-                    builder.setMtu(1280)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         builder.setMetered(true)
                     }
@@ -430,7 +427,7 @@ class GooseRelayVpnService : VpnService() {
                             VpnManager.appendLog("Starting gVisor TUN bridge...")
                             mobile.Mobile.startTunGvisor(
                                 vpnInterface!!.fd.toLong(),
-                                1280L,
+                                1500L,
                                 "127.0.0.1:$socksPort",
                                 profile.socksUser,
                                 profile.socksPass,

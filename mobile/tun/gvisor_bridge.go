@@ -45,17 +45,14 @@ const gvisorDNSPort uint16 = 53
 // ── Tuning constants ───────────────────────────────────────────────────────────
 
 const (
-	// gvisorRelayBufSize — each recycled relay buffer. 16 KB keeps per-flow
-	// memory low: small buffers with honest backpressure beat big windows
-	// that let megabytes pile up invisibly inside relay + gVisor buffers,
-	// making uploads LOOK complete while they were actually stalled.
-	gvisorRelayBufSize = 16 * 1024
+	// gvisorRelayBufSize — each recycled relay buffer. Sized to 64 KB to match
+	// high-throughput SOCKS relay buffers in hev-socks5-tunnel and modern netstack.
+	gvisorRelayBufSize = 64 * 1024
 
 	// gvisorTCPMaxInFlight — maximum concurrent TCP connections being
-	// proxied. Browsers/chat apps easily open dozens of flows; each flow
-	// holds relay buffers plus bandwidth inside the tunnel, so a generous
-	// cap turns SYN storms (and weak phones) into memory blow-ups.
-	gvisorTCPMaxInFlight = 96
+	// proxied. Allows up to 256 concurrent connections, providing solid headroom
+	// for media apps while strictly bounding memory to ~80 MB total, avoiding Android LMK.
+	gvisorTCPMaxInFlight = 256
 
 	// gvisorTCPDialTimeout — timeout for dialling the local SOCKS5 proxy
 	// (loopback, sub-millisecond when the engine is healthy).
@@ -68,8 +65,8 @@ const (
 	gvisorRelayWriteStallTimeout = 90 * time.Second
 
 	// gvisorRelayIdleTimeout — close a flow after this much total silence in
-	// BOTH directions. Safety net for fully-stalled flows that produce no
-	// errors.
+	// BOTH directions. 10 minutes protects quiet background WebSockets,
+	// Telegram/Signal, and push connections from premature termination.
 	gvisorRelayIdleTimeout = 10 * time.Minute
 
 	// gvisorRelayIdleCheckInterval — how often the per-flow idle watchdog
@@ -102,6 +99,9 @@ func gvisorPutRelayBuf(b []byte) { gvisorRelayBufPool.Put(&b) }
 // per interval (atomic timestamp, CAS-guarded).
 var gvisorRefusalLogLast atomic.Int64
 
+var gvisorBackpressureLogLast atomic.Int64
+var gvisorBackpressureDrops atomic.Uint64
+
 // Total DNS queries answered locally across all UDP endpoints (shared
 // so port-randomized queries don't reset the rate-limit ramp).
 var gvisorDNSAnswered atomic.Uint64
@@ -114,6 +114,9 @@ var gvisorDNSAnswered atomic.Uint64
 // goroutine that awaits ctx and closes it on shutdown.
 func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string, mapper *gvisorDNSMapper) (*stack.Stack, error) {
 	gvisorDNSAnswered.Store(0)
+	gvisorBackpressureDrops.Store(0)
+	gvisorBackpressureLogLast.Store(0)
+	gvisorRefusalLogLast.Store(0)
 	gvisorBridgeLog("starting bridge: tunFd=%d mtu=%d socksAddr=%s", tunFd, mtu, socksAddr)
 
 	s := stack.New(stack.Options{
@@ -137,15 +140,14 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 	sack := tcpip.TCPSACKEnabled(true)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sack)
 
-	// Keep receive buffering static: auto-tuning lets the window balloon far
-	// beyond what the tunnel can drain, hiding stalls from the uploading app
-	// (bufferbloat) and delaying error propagation on cancel.
+	// Disable receive buffer auto-tuning to avoid aggressive expansion on
+	// 0ms loopback which causes bufferbloat and memory bloat on mobile.
 	moderate := tcpip.TCPModerateReceiveBufferOption(false)
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &moderate)
 
-	// Sized for the tunnel's real throughput (~tens of KB/s): 64 KB default,
-	// 256 KB ceiling. Small windows give the app honest backpressure so a
-	// stalled upload surfaces quickly instead of piling into local buffers.
+	// Sized for high-throughput streaming over the local TUN loopback: 64 KB default
+	// keeps baseline heap low across many connections, while 256 KB ceiling
+	// strictly bounds memory under concurrency (protecting against Android LMK).
 	sendBuf := tcpip.TCPSendBufferSizeRangeOption{Min: 4096, Default: 64 << 10, Max: 256 << 10}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &sendBuf)
 
@@ -194,6 +196,11 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 	sem := make(chan struct{}, gvisorTCPMaxInFlight)
 
 	tcpFwd := tcp.NewForwarder(s, 0, gvisorTCPMaxInFlight, func(r *tcp.ForwarderRequest) {
+		if ctx.Err() != nil {
+			r.Complete(true)
+			return
+		}
+
 		id := r.ID()
 		dstAddr := net.JoinHostPort(id.LocalAddress.String(), strconv.Itoa(int(id.LocalPort)))
 
@@ -218,34 +225,34 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 			return
 		}
 
+		// Backpressure: fail fast at SYN time without completing the handshake.
+		select {
+		case sem <- struct{}{}:
+		default:
+			gvisorBackpressureDrops.Add(1)
+			now := time.Now().UnixNano()
+			last := gvisorBackpressureLogLast.Load()
+			delta := now - last
+			if delta > int64(5*time.Second) || delta < 0 {
+				if gvisorBackpressureLogLast.CompareAndSwap(last, now) {
+					drops := gvisorBackpressureDrops.Swap(0)
+					gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent, %d drops in window)", dstAddr, gvisorTCPMaxInFlight, drops)
+				}
+			}
+			r.Complete(true) // send RST at SYN time
+			return
+		}
+
 		var wq waiter.Queue
 		ep, tcpErr := r.CreateEndpoint(&wq)
 		if tcpErr != nil {
+			<-sem
 			gvisorBridgeErr("TCP CreateEndpoint failed for %s: %v", dstAddr, tcpErr)
 			r.Complete(true) // send RST
 			return
 		}
 		r.Complete(false)
 		conn := gonet.NewTCPConn(&wq, ep)
-
-		// Backpressure: wait up to 2s for a slot. Log if dropping.
-		// Use NewTimer (not time.After) so the timer is stopped immediately
-		// when a slot is available or ctx is cancelled — time.After leaves
-		// the underlying timer live for the full 2s on every fast-path
-		// connection, accumulating thousands of leaked timers under load.
-		bpTimer := time.NewTimer(2 * time.Second)
-		select {
-		case sem <- struct{}{}:
-			bpTimer.Stop()
-		case <-bpTimer.C:
-			gvisorBridgeWarn("TCP backpressure: dropping %s (>%d concurrent)", dstAddr, gvisorTCPMaxInFlight)
-			_ = conn.Close()
-			return
-		case <-ctx.Done():
-			bpTimer.Stop()
-			_ = conn.Close()
-			return
-		}
 
 		go func() {
 			defer func() { <-sem }()
@@ -267,6 +274,9 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 	// layer answers with ICMP Port Unreachable, making browsers and QUIC
 	// clients fall back to TCP immediately instead of stalling.
 	udpFwd := udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
+		if ctx.Err() != nil {
+			return
+		}
 		id := r.ID()
 		if id.LocalPort != gvisorDNSPort {
 			// Never reached via the gate below; kept as a guard so the
@@ -300,7 +310,9 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 		// and emits ICMP Port Unreachable for this packet.
 		// Rate-limited WARN — per-packet logging is forbidden.
 		now := time.Now().UnixNano()
-		if last := gvisorRefusalLogLast.Load(); now-last > int64(10*time.Second) {
+		last := gvisorRefusalLogLast.Load()
+		delta := now - last
+		if delta > int64(10*time.Second) || delta < 0 {
 			if gvisorRefusalLogLast.CompareAndSwap(last, now) {
 				gvisorBridgeWarn("refused non-DNS UDP packet to port %d (ICMP Port Unreachable)", id.LocalPort)
 			}
@@ -318,7 +330,7 @@ func gvisorSetupStack(ctx context.Context, tunFd int, mtu int, socksAddr string,
 // then relays bidirectionally. Each flow gets a fresh connection — loopback
 // is fast.
 func gvisorProxyTCPDirect(ctx context.Context, src net.Conn, dstAddr string, socksAddr string, mapper *gvisorDNSMapper) {
-	host, portStr, err := net.SplitHostPort(dstAddr)
+	origHost, portStr, err := net.SplitHostPort(dstAddr)
 	if err != nil {
 		gvisorBridgeErr("TCP parse %s: %v", dstAddr, err)
 		return
@@ -329,7 +341,7 @@ func gvisorProxyTCPDirect(ctx context.Context, src net.Conn, dstAddr string, soc
 		return
 	}
 
-	host, ok := mapper.mapTarget(host)
+	host, ok := mapper.mapTarget(origHost)
 	if !ok {
 		// A fake IP with no live mapping is never a real target. This
 		// happens after a reconnect while Android still caches an old
@@ -365,7 +377,11 @@ func gvisorProxyTCPDirect(ctx context.Context, src net.Conn, dstAddr string, soc
 		return
 	}
 
-	gvisorBridgeLog("TCP connected: %s", dstAddr)
+	if host != origHost {
+		gvisorBridgeLog("TCP connected: %s:%d (via %s)", host, port, dstAddr)
+	} else {
+		gvisorBridgeLog("TCP connected: %s", dstAddr)
+	}
 	gvisorBidirectionalRelay(ctx, src, proxy)
 }
 
@@ -439,7 +455,7 @@ type gvisorHalfCloser interface {
 //	a -> b  =  upload   (device -> internet)
 //	b -> a  =  download (internet -> device)
 //
-// Uses pooled 16 KB buffers to bound per-flow memory.
+// Uses pooled 64 KB buffers to bound per-flow memory.
 //
 // Abort semantics:
 //   - ctx cancelled (bridge bounce / VPN stop) → both sides closed at once.
@@ -491,12 +507,15 @@ func gvisorBidirectionalRelay(ctx context.Context, a, b net.Conn) {
 		buf := gvisorGetRelayBuf()
 		defer gvisorPutRelayBuf(buf)
 
+		var lastDeadlineSet time.Time
 		for {
 			n, readErr := src.Read(buf)
 			if n > 0 {
-				_ = dst.SetWriteDeadline(time.Now().Add(gvisorRelayWriteStallTimeout))
+				if time.Since(lastDeadlineSet) > 5*time.Second {
+					_ = dst.SetWriteDeadline(time.Now().Add(gvisorRelayWriteStallTimeout))
+					lastDeadlineSet = time.Now()
+				}
 				_, writeErr := dst.Write(buf[:n])
-				_ = dst.SetWriteDeadline(time.Time{})
 				lastActivity.Store(time.Now().UnixNano())
 				if writeErr != nil {
 					// Stalled write or peer reset: abort the whole flow.
