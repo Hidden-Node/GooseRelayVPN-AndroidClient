@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/kianmhz/GooseRelayVPN/internal/carrier"
@@ -82,6 +81,13 @@ type Bandwidth struct {
 	Down int64
 }
 
+func openClientLog(logPath string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		return nil, fmt.Errorf("create log directory: %w", err)
+	}
+	return os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+}
+
 func StartClient(configPath string, logPath string) error {
 	mu.Lock()
 	if running {
@@ -95,14 +101,16 @@ func StartClient(configPath string, logPath string) error {
 	totalDownloadBytes = 0
 	bytesMu.Unlock()
 
-	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
-		return fmt.Errorf("create log directory: %w", err)
-	}
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	logFile, err := openClientLog(logPath)
 	if err != nil {
 		return fmt.Errorf("open log file: %w", err)
 	}
-	defer logFile.Close()
+	origFlags := log.Flags()
+	defer func() {
+		log.SetFlags(origFlags)
+		log.SetOutput(os.Stderr)
+		_ = logFile.Close()
+	}()
 	log.SetFlags(0)
 	log.SetOutput(logFile)
 
@@ -209,20 +217,6 @@ func StartClient(configPath string, logPath string) error {
 	return err
 }
 
-// dupFd duplicates a file descriptor so tun2socks and Android each own
-// independent copies. When engine.Stop() internally closes the duplicated
-// fd, Android's ParcelFileDescriptor still has its original fd to close
-// safely — no double-close SIGSEGV. Returns ok=false when Dup fails; the
-// caller MUST abort startup in that case rather than proceed with the
-// borrowed fd (double-close on stop).
-func dupFd(fd int) (int, bool) {
-	dup, err := syscall.Dup(fd)
-	if err != nil {
-		return -1, false
-	}
-	return dup, true
-}
-
 func StopClient() {
 	mu.Lock()
 	cancel := cancelFn
@@ -282,7 +276,7 @@ func StartTun(fd int64, proxyAddr string) error {
 	// against the (unlikely) case where StartTun is called twice without
 	// an intervening StopTun.
 	if tunOwnedFd >= 0 {
-		_ = syscall.Close(int(tunOwnedFd))
+		closeTunFd(tunOwnedFd)
 	}
 	engine.Insert(key)
 	engine.Start()
@@ -312,7 +306,7 @@ func StopTun() {
 		engine.Stop()
 	}()
 	if tunOwnedFd >= 0 {
-		_ = syscall.Close(int(tunOwnedFd))
+		closeTunFd(tunOwnedFd)
 		tunOwnedFd = -1
 	}
 }
@@ -339,7 +333,7 @@ func StartTunBridge(tunFd int64, mtu int64, socksAddr, socksUser, socksPass stri
 
 	engineMu.Lock()
 	if tunOwnedFd >= 0 {
-		_ = syscall.Close(int(tunOwnedFd))
+		closeTunFd(tunOwnedFd)
 	}
 	engine.Insert(key)
 	engine.Start()
@@ -369,7 +363,7 @@ func StopTunBridge() {
 		engine.Stop()
 	}()
 	if tunOwnedFd >= 0 {
-		_ = syscall.Close(int(tunOwnedFd))
+		closeTunFd(tunOwnedFd)
 		tunOwnedFd = -1
 	}
 	engineMu.Unlock()
