@@ -123,6 +123,7 @@ fun LogsScreen(onBack: () -> Unit) {
 
     val listState = rememberLazyListState()
     var autoScrollEnabled by rememberSaveable { mutableStateOf(true) }
+    var lastObservedItem by remember { mutableStateOf<UiLogItem?>(null) }
     val context = LocalContext.current
 
     val shareLogs: () -> Unit = {
@@ -141,7 +142,10 @@ fun LogsScreen(onBack: () -> Unit) {
 
     LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled, activeFilter) {
         if (!autoScrollEnabled || uiLogItems.isEmpty()) return@LaunchedEffect
-        listState.scrollToLatestItem(uiLogItems.lastIndex)
+        val currentLast = uiLogItems.last()
+        val contentChanged = currentLast != lastObservedItem
+        lastObservedItem = currentLast
+        listState.scrollToLatestItem(uiLogItems.lastIndex, contentChanged = contentChanged)
     }
 
     Scaffold(
@@ -261,14 +265,19 @@ fun LogsScreen(onBack: () -> Unit) {
     }
 }
 
-private suspend fun LazyListState.scrollToLatestItem(lastIndex: Int) {
+private suspend fun LazyListState.scrollToLatestItem(lastIndex: Int, contentChanged: Boolean) {
     if (lastIndex < 0) return
     val initialItem = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex }
     if (initialItem == null) {
         scrollToItem(lastIndex)
+    } else if (!contentChanged) {
+        val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
+        val overflow = initialItem.offset + initialItem.size - viewportBottom
+        if (overflow > 0) scrollBy(overflow.toFloat())
+        return
     }
     val currentInfo = layoutInfo
-    val lastItem = withTimeoutOrNull(50) {
+    val lastItem = withTimeoutOrNull(200) {
         snapshotFlow { layoutInfo }
             .filter { it !== currentInfo }
             .mapNotNull { it.visibleItemsInfo.lastOrNull { item -> item.index == lastIndex } }
