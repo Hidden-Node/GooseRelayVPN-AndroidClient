@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -123,6 +124,7 @@ fun LogsScreen(onBack: () -> Unit) {
 
     val listState = rememberLazyListState()
     var autoScrollEnabled by rememberSaveable { mutableStateOf(true) }
+    var lastObservedSignature by remember { mutableStateOf<Pair<String, Int>?>(null) }
     val context = LocalContext.current
 
     val shareLogs: () -> Unit = {
@@ -140,9 +142,13 @@ fun LogsScreen(onBack: () -> Unit) {
     LaunchedEffect(uiLogItems.lastOrNull(), autoScrollEnabled, activeFilter) {
         val currentLast = uiLogItems.lastOrNull()
         if (!autoScrollEnabled || currentLast == null) return@LaunchedEffect
+        val currentSignature = currentLast.key to currentLast.details.size
+        val itemAppended = currentSignature != lastObservedSignature
+        lastObservedSignature = currentSignature
         listState.scrollToLatestItem(
             lastIndex = uiLogItems.lastIndex,
-            lastKey = currentLast.key
+            lastKey = currentLast.key,
+            itemAppended = itemAppended
         )
     }
 
@@ -265,7 +271,8 @@ fun LogsScreen(onBack: () -> Unit) {
 
 private suspend fun LazyListState.scrollToLatestItem(
     lastIndex: Int,
-    lastKey: String
+    lastKey: String,
+    itemAppended: Boolean
 ) {
     if (lastIndex < 0) return
     val initialItem = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
@@ -273,11 +280,12 @@ private suspend fun LazyListState.scrollToLatestItem(
         scrollToItem(lastIndex)
         val item = layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey }
         if (item != null) {
-            val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
-            val overflow = item.offset + item.size - viewportBottom
-            if (overflow > 0) scrollBy(overflow.toFloat())
+            adjustOverflow(item)
             return
         }
+    } else if (!itemAppended) {
+        adjustOverflow(initialItem)
+        return
     }
 
     val currentInfo = layoutInfo
@@ -288,8 +296,12 @@ private suspend fun LazyListState.scrollToLatestItem(
             .first()
     } ?: layoutInfo.visibleItemsInfo.lastOrNull { it.index == lastIndex && it.key == lastKey } ?: initialItem ?: return
 
+    adjustOverflow(lastItem)
+}
+
+private suspend fun LazyListState.adjustOverflow(item: LazyListItemInfo) {
     val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
-    val overflow = lastItem.offset + lastItem.size - viewportBottom
+    val overflow = item.offset + item.size - viewportBottom
     if (overflow > 0) scrollBy(overflow.toFloat())
 }
 
