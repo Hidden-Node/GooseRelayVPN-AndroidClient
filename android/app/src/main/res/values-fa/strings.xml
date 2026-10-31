@@ -106,6 +106,7 @@
     <string name="profiles_no_remote_url">این پروفایل محلی است و آدرس ریموت برای به‌روزرسانی ندارد.</string>
     <string name="profiles_invalid_json_format">فرمت JSON نامعتبر است</string>
     <string name="profiles_import_failed_msg">خطا در وارد کردن: %1$s</string>
+    <string name="profiles_export_target_missing">خروجی ناموفق بود: پروفایل دیگر وجود ندارد.</string>
     <string name="logs_share">اشتراک‌گذاری لاگ‌ها</string>
     <string name="logs_auto">خودکار</string>
     <string name="logs_clear">پاک کردن لاگ‌ها</string>

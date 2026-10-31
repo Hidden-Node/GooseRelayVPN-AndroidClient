@@ -170,7 +170,7 @@ fun ProfilesScreen(
         }
         val target = profiles.find { it.id == exportTargetId }
         if (target == null) {
-            showErrorDialog = context.getString(com.gooserelay.gooserelayvpn.R.string.profiles_no_selection_update)
+            showErrorDialog = context.getString(com.gooserelay.gooserelayvpn.R.string.profiles_export_target_missing)
             exportTargetId = null
             return@rememberLauncherForActivityResult
         }

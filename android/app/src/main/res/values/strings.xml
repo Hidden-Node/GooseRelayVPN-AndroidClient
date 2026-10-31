@@ -106,6 +106,7 @@
     <string name="profiles_no_remote_url">This profile is local and doesn\'t have a remote URL to update from.</string>
     <string name="profiles_invalid_json_format">Invalid JSON format</string>
     <string name="profiles_import_failed_msg">Import failed: %1$s</string>
+    <string name="profiles_export_target_missing">Export failed: profile no longer exists.</string>
     <string name="logs_share">Share Logs</string>
     <string name="logs_auto">Auto</string>
     <string name="logs_clear">Clear Logs</string>

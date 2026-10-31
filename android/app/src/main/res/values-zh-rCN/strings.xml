@@ -106,6 +106,7 @@
     <string name="profiles_no_remote_url">此配置文件为本地配置，没有可更新的远程 URL。</string>
     <string name="profiles_invalid_json_format">JSON 格式无效</string>
     <string name="profiles_import_failed_msg">导入失败：%1$s</string>
+    <string name="profiles_export_target_missing">导出失败：配置文件已不存在。</string>
     <string name="logs_share">分享日志</string>
     <string name="logs_auto">自动</string>
     <string name="logs_clear">清空日志</string>

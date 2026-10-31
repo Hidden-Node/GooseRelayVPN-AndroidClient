@@ -106,6 +106,7 @@
     <string name="profiles_no_remote_url">Этот профиль локальный и не имеет URL для обновления.</string>
     <string name="profiles_invalid_json_format">Неверный формат JSON</string>
     <string name="profiles_import_failed_msg">Ошибка импорта: %1$s</string>
+    <string name="profiles_export_target_missing">Ошибка экспорта: профиль больше не существует.</string>
     <string name="logs_share">Поделиться журналами</string>
     <string name="logs_auto">Авто</string>
     <string name="logs_clear">Очистить журналы</string>
