@@ -50,6 +50,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -79,6 +81,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.drawable.toBitmap
@@ -102,6 +105,7 @@ import androidx.compose.runtime.LaunchedEffect
 @Composable
 fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
     val context = LocalContext.current
+    val contentTextStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Content)
     val current by vm.settings.collectAsState()
     val installedApps by vm.installedApps.collectAsState()
     var draft by remember(current) { mutableStateOf(current) }
@@ -257,7 +261,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                         contentDescription = null
                                     )
                                 },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                                modifier = Modifier.menuAnchor(type = MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
                             )
                             DropdownMenu(expanded = modeExpanded, onDismissRequest = { modeExpanded = false }) {
                                 listOf("VPN", "PROXY").forEach { mode ->
@@ -405,6 +409,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                             socksPortRequiresRoot -> Text(stringResource(R.string.global_port_root_warning))
                                         }
                                     },
+                                    textStyle = contentTextStyle,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     modifier = Modifier.weight(1f)
                                 )
@@ -429,6 +434,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                             httpPortRequiresRoot -> Text(stringResource(R.string.global_port_root_warning))
                                         }
                                     },
+                                    textStyle = contentTextStyle,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     modifier = Modifier.weight(1f)
                                 )
