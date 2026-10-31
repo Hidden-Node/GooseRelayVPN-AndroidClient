@@ -83,6 +83,12 @@
     <string name="global_auth_mismatch">Set both username and password, or leave both empty.</string>
     <string name="global_username_missing">Username missing (pair with password, or leave both empty).</string>
     <string name="global_password_missing">Password missing (pair with username, or leave both empty).</string>
+    <string name="language_title">Language</string>
+    <string name="language_system">System Default</string>
+    <string name="language_english">English</string>
+    <string name="language_persian">فارسی</string>
+    <string name="language_chinese">简体中文</string>
+    <string name="language_russian">Русский</string>
     <string name="info_app_name_title">GooseRelayVPN</string>
     <string name="info_overview_subtitle">Project overview and build details</string>
     <string name="info_build_information">Build Information</string>

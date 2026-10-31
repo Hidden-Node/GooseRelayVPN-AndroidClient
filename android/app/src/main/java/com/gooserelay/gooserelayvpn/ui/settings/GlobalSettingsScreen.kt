@@ -1,5 +1,9 @@
 package com.gooserelay.gooserelayvpn.ui.settings
 
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -16,13 +20,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -228,6 +237,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                     contentPadding = PaddingValues(MdvSpace.S4),
                     verticalArrangement = Arrangement.spacedBy(MdvSpace.S3)
                 ) {
+                    item { LanguagePickerCard() }
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh)) {
                             Column(modifier = Modifier.padding(MdvSpace.S3), verticalArrangement = Arrangement.spacedBy(MdvSpace.S3)) {
@@ -786,5 +796,115 @@ private fun getSystemLocalIp(): String? {
         null
     } catch (_: Exception) {
         null
+    }
+}
+
+private data class LanguageOption(
+    val tag: String?,
+    @StringRes val labelRes: Int,
+    val nativeName: String
+)
+
+@Composable
+private fun LanguagePickerCard() {
+    val currentLocales = AppCompatDelegate.getApplicationLocales()
+    val current = if (currentLocales.isEmpty) null else currentLocales.toLanguageTags()
+    val options = listOf(
+        LanguageOption(null, R.string.language_system, stringResource(R.string.language_system)),
+        LanguageOption("en", R.string.language_english, "English"),
+        LanguageOption("fa", R.string.language_persian, "فارسی"),
+        LanguageOption("zh-CN", R.string.language_chinese, "简体中文"),
+        LanguageOption("ru", R.string.language_russian, "Русский")
+    )
+    val selectedOption = options.firstOrNull { option ->
+        when (option.tag) {
+            null -> current == null
+            "zh-CN" -> current != null && (current == "zh-CN" || current.startsWith("zh"))
+            else -> current != null && current.startsWith(option.tag)
+        }
+    } ?: options.first()
+
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(MdvSpace.S3),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Language,
+                    contentDescription = null,
+                    tint = MdvColor.Primary,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.width(MdvSpace.S3))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.language_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = selectedOption.nativeName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MdvColor.OnSurfaceVariant
+                    )
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MdvColor.OnSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MdvSpace.S2, vertical = MdvSpace.S1)
+                ) {
+                    options.forEach { option ->
+                        val isSelected = option == selectedOption
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    expanded = false
+                                    AppCompatDelegate.setApplicationLocales(
+                                        if (option.tag == null) LocaleListCompat.getEmptyLocaleList()
+                                        else LocaleListCompat.forLanguageTags(option.tag)
+                                    )
+                                }
+                                .padding(horizontal = MdvSpace.S3, vertical = MdvSpace.S2),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = option.nativeName,
+                                color = if (isSelected) MdvColor.Primary else MdvColor.OnSurface,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = stringResource(option.labelRes),
+                                    tint = MdvColor.Primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
