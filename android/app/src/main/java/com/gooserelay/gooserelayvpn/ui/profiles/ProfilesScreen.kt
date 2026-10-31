@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
@@ -170,7 +171,7 @@ fun ProfilesScreen(
         }
         val target = profiles.find { it.id == exportTargetId }
         if (target == null) {
-            showErrorDialog = context.getString(com.gooserelay.gooserelayvpn.R.string.profiles_export_target_missing)
+            showErrorDialog = context.getString(R.string.profiles_export_target_missing)
             exportTargetId = null
             return@rememberLauncherForActivityResult
         }
@@ -181,14 +182,14 @@ fun ProfilesScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         val fileName = getFileNameFromUri(context, uri)
         viewModel.importProfileFromUri(uri, context.contentResolver, fileName) {
-            showErrorDialog = context.getString(com.gooserelay.gooserelayvpn.R.string.profiles_import_failed_general)
+            showErrorDialog = context.getString(R.string.profiles_import_failed_general)
         }
     }
 
     Scaffold(
         topBar = {
             MdvBackTopAppBar(
-                title = stringResource(com.gooserelay.gooserelayvpn.R.string.title_profiles),
+                title = stringResource(R.string.title_profiles),
                 onBack = onBack,
                 actions = {
                     if (isUpdating) {
@@ -199,19 +200,19 @@ fun ProfilesScreen(
                         )
                     } else {
                         IconButton(onClick = { viewModel.updateRemoteProfile(context) }) {
-                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_update_remote))
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.profiles_update_remote))
                         }
                     }
                     Box {
                         IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Filled.Add, contentDescription = stringResource(com.gooserelay.gooserelayvpn.R.string.action_add))
+                            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_add))
                         }
                         DropdownMenu(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_from_clipboard)) },
+                                text = { Text(stringResource(R.string.profiles_from_clipboard)) },
                                 onClick = {
                                     menuExpanded = false
                                     val text = clipboardManager.getText()?.text?.trim()
@@ -225,24 +226,24 @@ fun ProfilesScreen(
                                                 if (profile != null) {
                                                     viewModel.addProfile(profile)
                                                 } else {
-                                                    showErrorDialog = context.getString(com.gooserelay.gooserelayvpn.R.string.profiles_import_failed_general)
+                                                    showErrorDialog = context.getString(R.string.profiles_import_failed_general)
                                                 }
                                             }
                                         }
                                     } else {
-                                        showErrorDialog = context.getString(com.gooserelay.gooserelayvpn.R.string.global_clipboard_empty_msg)
+                                        showErrorDialog = context.getString(R.string.global_clipboard_empty_msg)
                                     }
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_from_json_file)) },
+                                text = { Text(stringResource(R.string.profiles_from_json_file)) },
                                 onClick = {
                                     menuExpanded = false
                                     importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_add_manual)) },
+                                text = { Text(stringResource(R.string.profiles_add_manual)) },
                                 onClick = {
                                     menuExpanded = false
                                     editingId = null
@@ -268,10 +269,10 @@ fun ProfilesScreen(
                         tint = MdvColor.OnSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(MdvSpace.S3))
-                    Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_empty_title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.profiles_empty_title), style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(MdvSpace.S1))
                     Text(
-                        stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_empty_desc),
+                        stringResource(R.string.profiles_empty_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MdvColor.OnSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -304,7 +305,7 @@ fun ProfilesScreen(
                             if (profile.isSelected) {
                                 Icon(
                                     Icons.Filled.CheckCircle,
-                                    contentDescription = stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_selected),
+                                    contentDescription = stringResource(R.string.profiles_selected),
                                     tint = ConnectedGreen,
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -317,20 +318,20 @@ fun ProfilesScreen(
                             }
 
                             IconButton(onClick = { editingId = profile.id; showEditor = true }) {
-                                Icon(Icons.Filled.Edit, contentDescription = stringResource(com.gooserelay.gooserelayvpn.R.string.action_edit))
+                                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.action_edit))
                             }
 
                             var shareMenuExpanded by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(onClick = { shareMenuExpanded = true }) {
-                                    Icon(Icons.Filled.Share, contentDescription = stringResource(com.gooserelay.gooserelayvpn.R.string.action_share))
+                                    Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.action_share))
                                 }
                                 DropdownMenu(
                                     expanded = shareMenuExpanded,
                                     onDismissRequest = { shareMenuExpanded = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_to_clipboard)) },
+                                        text = { Text(stringResource(R.string.profiles_to_clipboard)) },
                                         onClick = {
                                             shareMenuExpanded = false
                                             val exportObj = JsonObject()
@@ -344,7 +345,7 @@ fun ProfilesScreen(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_to_json)) },
+                                        text = { Text(stringResource(R.string.profiles_to_json)) },
                                         onClick = {
                                             shareMenuExpanded = false
                                             exportTargetId = profile.id
@@ -355,7 +356,7 @@ fun ProfilesScreen(
                             }
 
                             IconButton(onClick = { pendingDeleteId = profile.id }) {
-                                Icon(Icons.Filled.Delete, contentDescription = stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_delete))
+                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.profiles_delete))
                             }
                         }
                     }
@@ -370,10 +371,10 @@ fun ProfilesScreen(
             onDismissRequest = { showErrorDialog = null },
             confirmButton = {
                 TextButton(onClick = { showErrorDialog = null }) {
-                    Text(stringResource(com.gooserelay.gooserelayvpn.R.string.action_ok))
+                    Text(stringResource(R.string.action_ok))
                 }
             },
-            title = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.common_notification)) },
+            title = { Text(stringResource(R.string.common_notification)) },
             text = { Text(dialogError) }
         )
     }
@@ -393,12 +394,12 @@ fun ProfilesScreen(
     profilePendingDelete?.let { profile ->
         AlertDialog(
             onDismissRequest = { pendingDeleteId = null },
-            title = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_delete_confirm_title)) },
+            title = { Text(stringResource(R.string.profiles_delete_confirm_title)) },
             text = {
                 Text(
                     stringResource(
-                        com.gooserelay.gooserelayvpn.R.string.profiles_delete_confirm_message,
-                        profile.name.ifBlank { stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_dialog_new_title) }
+                        R.string.profiles_delete_confirm_message,
+                        profile.name.ifBlank { stringResource(R.string.profiles_dialog_new_title) }
                     )
                 )
             },
@@ -409,12 +410,12 @@ fun ProfilesScreen(
                         pendingDeleteId = null
                     }
                 ) {
-                    Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_delete))
+                    Text(stringResource(R.string.profiles_delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDeleteId = null }) {
-                    Text(stringResource(com.gooserelay.gooserelayvpn.R.string.action_cancel))
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -458,9 +459,9 @@ private fun ProfileEditorDialog(
         confirmButton = {
             Button(onClick = {
                 val error = when {
-                    scriptKeyEntries.none { it.id.isNotBlank() } -> context.getString(com.gooserelay.gooserelayvpn.R.string.profiles_validation_script_keys_required)
-                    tunnelKey.isBlank() -> context.getString(com.gooserelay.gooserelayvpn.R.string.profiles_validation_tunnel_key_required)
-                    (socksUser.isBlank()) != (socksPass.isBlank()) -> context.getString(com.gooserelay.gooserelayvpn.R.string.profiles_validation_auth_mismatch)
+                    scriptKeyEntries.none { it.id.isNotBlank() } -> context.getString(R.string.profiles_validation_script_keys_required)
+                    tunnelKey.isBlank() -> context.getString(R.string.profiles_validation_tunnel_key_required)
+                    (socksUser.isBlank()) != (socksPass.isBlank()) -> context.getString(R.string.profiles_validation_auth_mismatch)
                     else -> null
                 }
                 if (error != null) {
@@ -491,10 +492,10 @@ private fun ProfileEditorDialog(
                         createdAt = profile?.createdAt ?: System.currentTimeMillis()
                     )
                 )
-            }) { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.action_save)) }
+            }) { Text(stringResource(R.string.action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.action_cancel)) } },
-        title = { Text(stringResource(if (profile == null) com.gooserelay.gooserelayvpn.R.string.profiles_dialog_new_title else com.gooserelay.gooserelayvpn.R.string.profiles_dialog_edit_title)) },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        title = { Text(stringResource(if (profile == null) R.string.profiles_dialog_new_title else R.string.profiles_dialog_edit_title)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -503,13 +504,13 @@ private fun ProfileEditorDialog(
                 OutlinedTextField(
                     value = remoteUrl,
                     onValueChange = { remoteUrl = it },
-                    label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_remote_url)) },
+                    label = { Text(stringResource(R.string.profiles_remote_url)) },
                     modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_remote_url_help)) }
+                    supportingText = { Text(stringResource(R.string.profiles_remote_url_help)) }
                 )
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_name)) })
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.profiles_name)) })
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(com.gooserelay.gooserelayvpn.R.string.settings_debug_timing))
+                    Text(stringResource(R.string.settings_debug_timing))
                     Switch(checked = debugTiming, onCheckedChange = { debugTiming = it })
                 }
                 var socksHostExpanded by remember { mutableStateOf(false) }
@@ -521,7 +522,7 @@ private fun ProfileEditorDialog(
                         value = socksHost,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.settings_socks_host)) },
+                        label = { Text(stringResource(R.string.settings_socks_host)) },
                         textStyle = contentTextStyle,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = socksHostExpanded) },
                         modifier = Modifier.menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
@@ -531,28 +532,28 @@ private fun ProfileEditorDialog(
                         onDismissRequest = { socksHostExpanded = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_host_localhost)) },
+                            text = { Text(stringResource(R.string.profiles_host_localhost)) },
                             onClick = { socksHost = "127.0.0.1"; socksHostExpanded = false }
                         )
                         DropdownMenuItem(
-                            text = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_host_all_interfaces)) },
+                            text = { Text(stringResource(R.string.profiles_host_all_interfaces)) },
                             onClick = { socksHost = "0.0.0.0"; socksHostExpanded = false }
                         )
                     }
                 }
-                OutlinedTextField(value = socksPort, onValueChange = { socksPort = it.filter(Char::isDigit) }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.settings_socks_port)) }, textStyle = contentTextStyle)
-                OutlinedTextField(value = socksUser, onValueChange = { socksUser = it }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.settings_socks_user)) }, textStyle = contentTextStyle)
-                OutlinedTextField(value = socksPass, onValueChange = { socksPass = it }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.settings_socks_pass)) }, textStyle = contentTextStyle)
-                OutlinedTextField(value = googleHost, onValueChange = { googleHost = it }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.settings_google_host)) }, textStyle = contentTextStyle)
-                OutlinedTextField(value = sniCsv, onValueChange = { sniCsv = it }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.settings_sni)) }, textStyle = contentTextStyle)
+                OutlinedTextField(value = socksPort, onValueChange = { socksPort = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.settings_socks_port)) }, textStyle = contentTextStyle)
+                OutlinedTextField(value = socksUser, onValueChange = { socksUser = it }, label = { Text(stringResource(R.string.settings_socks_user)) }, textStyle = contentTextStyle)
+                OutlinedTextField(value = socksPass, onValueChange = { socksPass = it }, label = { Text(stringResource(R.string.settings_socks_pass)) }, textStyle = contentTextStyle)
+                OutlinedTextField(value = googleHost, onValueChange = { googleHost = it }, label = { Text(stringResource(R.string.settings_google_host)) }, textStyle = contentTextStyle)
+                OutlinedTextField(value = sniCsv, onValueChange = { sniCsv = it }, label = { Text(stringResource(R.string.settings_sni)) }, textStyle = contentTextStyle)
                 ScriptKeysEditor(
                     entries = scriptKeyEntries,
                     onEntriesChanged = { scriptKeyEntries = it },
                     contentTextStyle = contentTextStyle
                 )
-                OutlinedTextField(value = tunnelKey, onValueChange = { tunnelKey = it }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.settings_tunnel_key)) }, textStyle = contentTextStyle)
-                OutlinedTextField(value = coalesceStepMs, onValueChange = { coalesceStepMs = it.filter(Char::isDigit) }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_coalesce_step)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(value = idleSlotsPerBucket, onValueChange = { idleSlotsPerBucket = it.filter(Char::isDigit) }, label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_idle_slots)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = tunnelKey, onValueChange = { tunnelKey = it }, label = { Text(stringResource(R.string.settings_tunnel_key)) }, textStyle = contentTextStyle)
+                OutlinedTextField(value = coalesceStepMs, onValueChange = { coalesceStepMs = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.profiles_coalesce_step)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = idleSlotsPerBucket, onValueChange = { idleSlotsPerBucket = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.profiles_idle_slots)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Spacer(Modifier.height(2.dp))
             }
         }
@@ -564,10 +565,10 @@ private fun ProfileEditorDialog(
             onDismissRequest = { showErrorDialog = null },
             confirmButton = {
                 TextButton(onClick = { showErrorDialog = null }) {
-                    Text(stringResource(com.gooserelay.gooserelayvpn.R.string.action_ok))
+                    Text(stringResource(R.string.action_ok))
                 }
             },
-            title = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.common_error)) },
+            title = { Text(stringResource(R.string.common_error)) },
             text = { Text(dialogError) }
         )
     }
@@ -585,7 +586,7 @@ private fun ScriptKeysEditor(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_script_keys_hint),
+            stringResource(R.string.profiles_script_keys_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MdvColor.OnSurfaceVariant
         )
@@ -610,7 +611,7 @@ private fun ScriptKeysEditor(
                                 newEntries[index] = entry.copy(id = newId)
                                 onEntriesChanged(newEntries)
                             },
-                            label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_deployment_id)) },
+                            label = { Text(stringResource(R.string.profiles_deployment_id)) },
                             textStyle = contentTextStyle,
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
@@ -622,7 +623,7 @@ private fun ScriptKeysEditor(
                                 newEntries[index] = entry.copy(account = newAccount)
                                 onEntriesChanged(newEntries)
                             },
-                            label = { Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_account)) },
+                            label = { Text(stringResource(R.string.profiles_account)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -636,7 +637,7 @@ private fun ScriptKeysEditor(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_delete),
+                            contentDescription = stringResource(R.string.profiles_delete),
                             tint = MdvColor.Error
                         )
                     }
@@ -658,7 +659,7 @@ private fun ScriptKeysEditor(
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(com.gooserelay.gooserelayvpn.R.string.profiles_add_script_key))
+            Text(stringResource(R.string.profiles_add_script_key))
         }
     }
 }
