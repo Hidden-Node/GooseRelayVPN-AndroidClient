@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -31,8 +32,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -50,8 +54,8 @@ fun SettingsScreen(
     var validationMessage by remember { mutableStateOf<String?>(null) }
 
     if (profile == null) {
-        Scaffold(topBar = { MdvBackTopAppBar(title = "Profile Settings", onBack = onBack) }) { p ->
-            Text("No selected profile", modifier = Modifier.padding(p).padding(16.dp))
+        Scaffold(topBar = { MdvBackTopAppBar(title = stringResource(R.string.profile_settings_title), onBack = onBack) }) { p ->
+            Text(stringResource(R.string.settings_no_profile_title), modifier = Modifier.padding(p).padding(16.dp))
         }
         return
     }
@@ -75,7 +79,7 @@ fun SettingsScreen(
                 val decodedBytes = Base64.decode(base64Content, Base64.DEFAULT)
                 String(decodedBytes)
             } catch (_: Exception) {
-                validationMessage = "Import failed: invalid goose-relay:// format."
+                validationMessage = context.getString(R.string.settings_import_failed_invalid_format)
                 return
             }
         } else {
@@ -84,11 +88,11 @@ fun SettingsScreen(
 
         val updated = viewModel.importJsonToProfile(profile, raw)
         if (updated == null) {
-            validationMessage = "Import failed: invalid JSON format."
+            validationMessage = context.getString(R.string.settings_import_failed_invalid_json)
             return
         }
         if ((updated.socksUser.isBlank()) != (updated.socksPass.isBlank())) {
-            validationMessage = "Import rejected: socks_user and socks_pass must both be set or both be empty (SOCKS5 auth requires both values)."
+            validationMessage = context.getString(R.string.settings_import_auth_mismatch)
             return
         }
         debugTiming = updated.debugTiming
@@ -132,7 +136,7 @@ fun SettingsScreen(
     }
 
     Scaffold(
-        topBar = { MdvBackTopAppBar(title = "Profile Settings", onBack = onBack) },
+        topBar = { MdvBackTopAppBar(title = stringResource(R.string.profile_settings_title), onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbar) }
     ) { padding ->
         LaunchedEffect(validationMessage) {
@@ -181,28 +185,30 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("debug_timing")
+            val contentTextStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Content)
+
+            Text(stringResource(R.string.settings_debug_timing))
             Switch(checked = debugTiming, onCheckedChange = { debugTiming = it })
-            OutlinedTextField(socksHost, { socksHost = it }, label = { Text("socks_host") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(socksPort, { socksPort = it.filter(Char::isDigit) }, label = { Text("socks_port") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(socksUser, { socksUser = it }, label = { Text("socks_user") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(socksPass, { socksPass = it }, label = { Text("socks_pass") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(googleHost, { googleHost = it }, label = { Text("google_host") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(sniText, { sniText = it }, label = { Text("sni (comma separated)") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(scriptKeys, { scriptKeys = it }, label = { Text("script_keys (one per line)") }, minLines = 3, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(tunnelKey, { tunnelKey = it }, label = { Text("tunnel_key") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(socksHost, { socksHost = it }, label = { Text(stringResource(R.string.settings_socks_host)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(socksPort, { socksPort = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.settings_socks_port)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(socksUser, { socksUser = it }, label = { Text(stringResource(R.string.settings_socks_user)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(socksPass, { socksPass = it }, label = { Text(stringResource(R.string.settings_socks_pass)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(googleHost, { googleHost = it }, label = { Text(stringResource(R.string.settings_google_host)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(sniText, { sniText = it }, label = { Text(stringResource(R.string.settings_sni)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(scriptKeys, { scriptKeys = it }, label = { Text(stringResource(R.string.settings_script_keys)) }, textStyle = contentTextStyle, minLines = 3, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(tunnelKey, { tunnelKey = it }, label = { Text(stringResource(R.string.settings_tunnel_key)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }, modifier = Modifier.weight(1f)) { Text("Import File") }
+                Button(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.settings_import_file)) }
                 Button(onClick = {
                     val text = clipboardManager.getText()?.text
                     if (text.isNullOrBlank()) {
-                        validationMessage = "Clipboard is empty"
+                        validationMessage = context.getString(R.string.global_clipboard_empty_msg)
                     } else {
                         applyImportedProfile(text)
                     }
-                }, modifier = Modifier.weight(1f)) { Text("From Clipboard") }
+                }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.settings_from_clipboard)) }
             }
-            Button(onClick = { exportLauncher.launch("goose_profile.json") }, modifier = Modifier.fillMaxWidth()) { Text("Export JSON File") }
+            Button(onClick = { exportLauncher.launch("goose_profile.json") }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.settings_export_json_file)) }
         }
     }
 }

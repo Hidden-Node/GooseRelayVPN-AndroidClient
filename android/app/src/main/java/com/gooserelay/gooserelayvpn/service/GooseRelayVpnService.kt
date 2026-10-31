@@ -232,7 +232,7 @@ class GooseRelayVpnService : VpnService() {
                     acquireWifiLock()
                     VpnManager.updateState(VpnManager.VpnState.CONNECTED)
                     VpnManager.startTrafficMonitor(this@GooseRelayVpnService)
-                    val notification = buildNotification("Proxy mode active on port $socksPort")
+                    val notification = buildNotification(getString(R.string.notification_proxy_active, socksPort))
                     val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
                     manager.notify(NOTIFICATION_ID, notification)
                     startKeepalive()

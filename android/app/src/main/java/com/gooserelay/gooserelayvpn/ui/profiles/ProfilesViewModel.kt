@@ -115,10 +115,10 @@ class ProfilesViewModel @Inject constructor(
                     profileRepository.updateProfile(updated)
                     _updateMessage.value = context.getString(R.string.profiles_update_success)
                 } else {
-                    _updateMessage.value = context.getString(R.string.profiles_update_error, "Invalid JSON format")
+                    _updateMessage.value = context.getString(R.string.profiles_update_error, context.getString(R.string.profiles_invalid_json_format))
                 }
             } catch (e: Exception) {
-                _updateMessage.value = context.getString(R.string.profiles_update_error, e.localizedMessage ?: "Unknown error")
+                _updateMessage.value = context.getString(R.string.profiles_update_error, e.localizedMessage ?: context.getString(R.string.common_unknown_error))
             } finally {
                 _isUpdating.value = false
             }
@@ -149,10 +149,10 @@ class ProfilesViewModel @Inject constructor(
                     addProfile(profile)
                     _updateMessage.value = context.getString(R.string.profiles_update_success)
                 } else {
-                    _updateMessage.value = "Import failed: Invalid JSON format"
+                    _updateMessage.value = context.getString(R.string.profiles_import_failed_msg, context.getString(R.string.profiles_invalid_json_format))
                 }
             } catch (e: Exception) {
-                _updateMessage.value = "Import failed: ${e.localizedMessage}"
+                _updateMessage.value = context.getString(R.string.profiles_import_failed_msg, e.localizedMessage ?: context.getString(R.string.common_unknown_error))
             } finally {
                 _isUpdating.value = false
             }

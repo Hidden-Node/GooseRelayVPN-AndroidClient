@@ -2,6 +2,7 @@ package com.gooserelay.gooserelayvpn.util
 
 import android.content.Context
 import android.content.Intent
+import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.service.GooseRelayVpnService
 import kotlinx.coroutines.CoroutineScope
@@ -244,7 +245,7 @@ object VpnManager {
 
         runCatching { context.startService(intent) }
             .onFailure {
-                setError("Failed to start VPN service: ${it.message}")
+                setError(context.getString(R.string.vpn_start_failed, it.message ?: ""))
                 appendLog("Failed to start VPN service: ${it.message}")
                 updateState(VpnState.ERROR)
             }
@@ -264,7 +265,7 @@ object VpnManager {
         }
         runCatching { context.startService(intent) }
             .onFailure {
-                setError("Failed to stop VPN service: ${it.message}")
+                setError(context.getString(R.string.vpn_stop_failed, it.message ?: ""))
                 appendLog("Failed to stop VPN service: ${it.message}")
                 updateState(VpnState.ERROR)
             }

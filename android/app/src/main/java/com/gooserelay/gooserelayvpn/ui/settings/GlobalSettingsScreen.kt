@@ -168,14 +168,14 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                 actions = {
                     Box {
                         IconButton(onClick = { menuExpanded = true }) {
-                            Icon(imageVector = Icons.Filled.MoreVert, contentDescription = "More")
+                            Icon(imageVector = Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
                         }
                         DropdownMenu(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Export to Clipboard") },
+                                text = { Text(stringResource(R.string.global_export_clipboard)) },
                                 onClick = {
                                     menuExpanded = false
                                     // ponytail: never export credentials. AGENTS.md forbids
@@ -187,11 +187,11 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                     )
                                     val json = gson.toJson(redacted)
                                     clipboardManager.setText(AnnotatedString(json))
-                                    scope.launch { snackbarHostState.showSnackbar("Settings copied (credentials excluded)") }
+                                    scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.global_settings_copied_msg)) }
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Import from Clipboard") },
+                                text = { Text(stringResource(R.string.global_import_clipboard)) },
                                 onClick = {
                                     menuExpanded = false
                                     val text = clipboardManager.getText()?.text
@@ -199,12 +199,12 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                         val imported = parseImportedSettings(text)
                                         if (imported != null) {
                                             draft = imported
-                                            scope.launch { snackbarHostState.showSnackbar("Settings imported from clipboard") }
+                                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.global_settings_imported_msg)) }
                                         } else {
-                                            scope.launch { snackbarHostState.showSnackbar("Failed to parse settings JSON") }
+                                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.global_settings_parse_failed_msg)) }
                                         }
                                     } else {
-                                        scope.launch { snackbarHostState.showSnackbar("Clipboard is empty") }
+                                        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.global_clipboard_empty_msg)) }
                                     }
                                 }
                             )
