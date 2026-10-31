@@ -7,7 +7,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import androidx.core.os.ConfigurationCompat
 import com.gooserelay.gooserelayvpn.R
@@ -18,17 +17,19 @@ val ConnectingAmber = MdvColor.PrimaryDim
 
 private val StitchColorScheme = darkColorScheme(
     primary = MdvColor.Primary,
-    onPrimary = Color(0xFF00363D),
+    onPrimary = MdvColor.OnPrimary,
     primaryContainer = MdvColor.PrimaryContainer,
-    onPrimaryContainer = Color(0xFF001F24),
+    onPrimaryContainer = MdvColor.OnPrimaryContainer,
     secondary = MdvColor.Secondary,
-    onSecondary = Color(0xFF243141),
+    onSecondary = MdvColor.OnSecondary,
     background = MdvColor.Background,
     onBackground = MdvColor.OnSurface,
     surface = MdvColor.Surface,
     onSurface = MdvColor.OnSurface,
     surfaceVariant = MdvColor.SurfaceHigh,
     onSurfaceVariant = MdvColor.OnSurfaceVariant,
+    outline = MdvColor.Outline,
+    outlineVariant = MdvColor.OutlineVariant,
     error = MdvColor.Error,
     onError = MdvColor.OnError,
     errorContainer = MdvColor.ErrorContainer,

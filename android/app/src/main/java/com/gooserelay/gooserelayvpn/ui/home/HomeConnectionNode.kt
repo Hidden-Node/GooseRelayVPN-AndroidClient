@@ -81,7 +81,7 @@ fun MdvConnectionNodeButton(
                         stringResource(R.string.home_connect)
                     },
                     modifier = Modifier.size(48.dp),
-                    tint = Color(0xFF001F24)
+                    tint = MdvColor.OnPrimaryContainer
                 )
             }
         }

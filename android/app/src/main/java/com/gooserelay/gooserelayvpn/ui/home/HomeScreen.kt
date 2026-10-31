@@ -29,7 +29,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.gooserelay.gooserelayvpn.ui.components.mdv.cards.MdvCardLow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -106,7 +106,7 @@ fun HomeScreen(
             VpnManager.VpnState.CONNECTING,
             VpnManager.VpnState.DISCONNECTING -> ConnectingAmber
             VpnManager.VpnState.ERROR -> DisconnectedRed
-            else -> Color.Gray
+            else -> MdvColor.Outline
         },
         animationSpec = tween(500),
         label = "statusColor"
@@ -330,7 +330,7 @@ fun HomeScreen(
 
 @Composable
 private fun HowToUseCard(onOpen: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), onClick = onOpen) {
+    MdvCardLow(modifier = Modifier.fillMaxWidth(), onClick = onOpen) {
         Column(modifier = Modifier.fillMaxWidth().padding(MdvSpace.S3)) {
             Text(
                 text = stringResource(R.string.home_howto_title),

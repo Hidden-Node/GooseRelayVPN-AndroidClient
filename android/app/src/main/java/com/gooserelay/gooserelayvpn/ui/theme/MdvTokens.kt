@@ -15,14 +15,23 @@ object MdvColor {
     val PrimaryContainer = Color(0xFF19D16A)
     val PrimaryDim = Color(0xFF10B85A)
     val Secondary = Color(0xFFBED7C6)
+    val OnPrimary = Color(0xFF00363D)
+    val OnPrimaryContainer = Color(0xFF001F24)
+    val OnSecondary = Color(0xFF243141)
 
     val OnSurface = Color(0xFFDFEBE3)
     val OnSurfaceVariant = Color(0xFFBDD0C2)
+    val Outline = Color(0xFF849396)
     val OutlineVariant = Color(0xFF3C4D42)
 
     val Error = Color(0xFFFFB4AB)
     val ErrorContainer = Color(0xFF93000A)
     val OnError = Color(0xFF690005)
+
+    val Warning = Color(0xFFFFB74D)
+    val WarningContainer = Color(0xFF5A4321)
+    val Info = Color(0xFF81C784)
+    val InfoContainer = Color(0xFF1C3B25)
 }
 
 object MdvSpace {

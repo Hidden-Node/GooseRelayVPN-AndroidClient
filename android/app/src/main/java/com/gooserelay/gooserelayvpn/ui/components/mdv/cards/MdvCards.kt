@@ -12,26 +12,48 @@ import com.gooserelay.gooserelayvpn.ui.theme.MdvRadius
 @Composable
 fun MdvCardLow(
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(MdvRadius.Lg),
-        colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceLow),
-        content = content
-    )
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = modifier,
+            shape = RoundedCornerShape(MdvRadius.Lg),
+            colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceLow),
+            content = content
+        )
+    } else {
+        Card(
+            modifier = modifier,
+            shape = RoundedCornerShape(MdvRadius.Lg),
+            colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceLow),
+            content = content
+        )
+    }
 }
 
 @Composable
 fun MdvCardHigh(
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(MdvRadius.Xl),
-        colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh),
-        content = content
-    )
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = modifier,
+            shape = RoundedCornerShape(MdvRadius.Xl),
+            colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh),
+            content = content
+        )
+    } else {
+        Card(
+            modifier = modifier,
+            shape = RoundedCornerShape(MdvRadius.Xl),
+            colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh),
+            content = content
+        )
+    }
 }
 

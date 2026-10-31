@@ -221,7 +221,7 @@ fun LogsScreen(onBack: () -> Unit) {
                     modifier = Modifier.weight(1f),
                     title = stringResource(R.string.logs_stat_warnings),
                     value = stats.warnings.toString(),
-                    accent = Color(0xFFFFB74D)
+                    accent = MdvColor.Warning
                 )
             }
 
@@ -421,8 +421,8 @@ private fun ToneChip(
 private fun severityUi(severity: LogSeverity): Triple<String, Color, Color> {
     return when (severity) {
         LogSeverity.ERROR -> Triple("ERROR", MdvColor.Error, MdvColor.ErrorContainer.copy(alpha = 0.38f))
-        LogSeverity.WARN -> Triple("WARN", Color(0xFFFFB74D), Color(0xFF5A4321))
-        LogSeverity.INFO -> Triple("INFO", Color(0xFF81C784), Color(0xFF1C3B25))
+        LogSeverity.WARN -> Triple("WARN", MdvColor.Warning, MdvColor.WarningContainer)
+        LogSeverity.INFO -> Triple("INFO", MdvColor.Info, MdvColor.InfoContainer)
         LogSeverity.DEBUG -> Triple("DEBUG", MdvColor.Secondary, MdvColor.SurfaceHighest)
         LogSeverity.VERBOSE -> Triple("TRACE", MdvColor.Secondary, MdvColor.SurfaceHighest)
         LogSeverity.PLAIN -> Triple("LOG", MdvColor.OnSurfaceVariant, MdvColor.SurfaceHighest)
