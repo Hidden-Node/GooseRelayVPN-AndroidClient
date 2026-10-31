@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -50,12 +51,22 @@ fun AppNavigation() {
         if (currentRoute == screen.route) {
             return
         }
-        navController.navigate(screen.route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
+        if (screen == Screen.Home) {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(Screen.Home.route) {
+                    inclusive = false
+                    saveState = true
+                }
+                launchSingleTop = true
             }
-            launchSingleTop = true
-            restoreState = true
+        } else {
+            navController.navigate(screen.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
     }
     val icons = mapOf(
@@ -85,8 +96,14 @@ fun AppNavigation() {
                         },
                         label = {
                             Text(
-                                title.uppercase(),
-                                fontWeight = FontWeight.SemiBold,
+                                title,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.sp,
+                                    letterSpacing = 0.05.sp
+                                ),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (selected) MdvColor.Primary else MdvColor.Secondary.copy(alpha = 0.65f)
                             )
                         },
