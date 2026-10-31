@@ -130,6 +130,25 @@ require a connected emulator or device; CI does not run them.
   `ProfileEntity.socksPass`, `tunnelKey`, `scriptKeysText` (and their
   JSON-serialized forms in `ConfigGenerator.exportProfileJson`) must
   not appear in logs.
+- **Compose screens & UI components**:
+  - **Design tokens**: Use `MdvColor`, `MdvSpace`, and `MdvRadius` from
+    `ui/theme/MdvTokens.kt`. Never hardcode raw hex colors (e.g. `Color(0xFF...)`),
+    raw dimensions when tokens exist, or stock Compose colors like `Color.Gray`.
+    Declare missing semantic tokens in `MdvTokens.kt` before consuming them.
+  - **Reusable MDV primitives**: Always use standard components under
+    `ui/components/mdv/` (`MdvTopAppBar`/`MdvBackTopAppBar` for headers,
+    `MdvCardLow`/`MdvCardHigh` for cards, `MdvFilterChip`) rather than building raw
+    ad-hoc equivalents or unstyled Material 3 primitives.
+  - **Localization & String resources**: Never hardcode user-facing string literals
+    in composables or dialogs. Always use `stringResource(R.string.*)` and ensure keys
+    exist across all supported locale tables (`values-fa`, `values-zh`, `values-ru`).
+  - **Responsive layouts (No code duplication)**: When supporting wide/portrait
+    modes (e.g. `metrics.isWide`), never copy-paste child widget trees across
+    `if-else` branches. Extract sub-composables and keep a single source of truth;
+    responsive branching should only toggle container arrangement (`Row` vs `Column`),
+    alignment, and modifier constraints.
+  - **No speculative/dead code**: Never create components, helpers, or tokens
+    "for the future" without an immediate live call-site. Delete dead UI code proactively.
 
 ### Go (in `mobile/`)
 
@@ -185,6 +204,13 @@ require a connected emulator or device; CI does not run them.
   — the Gradle build loads `android/app/libs/gooserelayvpn.aar` as a
   file dependency and will silently test against a stale AAR if the
   AAR isn't refreshed.
+- **Raw hex colors and hardcoded strings.** Always use `MdvColor.*`
+  design tokens and `stringResource(R.string.*)`. Never put raw
+  `Color(0x...)` or string literals directly in composables.
+- **Responsive layout code duplication.** Do not duplicate full
+  composable trees for wide/portrait layouts (`metrics.isWide`);
+  extract sub-composables (e.g. `HomeCardsColumn`, `HomeStatusSummary`)
+  instead of copy-pasting child cards and telemetry wiring.
 
 ## Running the plans in `plans/`
 
