@@ -62,7 +62,7 @@ The app wraps this flow in Android `VpnService` so selected/full traffic can be 
 
 ### Profile Management (v1.7.1+)
 - 📋 **Remote profile subscriptions** - Sync profiles from remote HTTPS URLs (manual refresh)
-- 🔗 **goose-relay:// protocol** - Share core profile fields (name, script_keys, tunnel_key) via Base64-encoded URI scheme
+- 🔗 **goose-relay:// protocol** - Share full profile configuration via Base64-encoded URI scheme
 - 📤 **JSON import/export** - Profile backup and restore via file
 - 📋 **Clipboard import/export** - Quick copy-paste profile sharing
 - 🔄 **Remote updates** - One-click refresh from remote source
@@ -151,7 +151,7 @@ Profile fields are aligned with GooseRelay client config. Create profiles manual
 
 #### 4. Profile Sharing (goose-relay:// Protocol) — **NEW**
 - Open a profile → Tap **Share** icon
-- Select "to Clipboard" to copy `goose-relay://` URI (contains only `name`, `script_keys`, `tunnel_key`)
+- Select "to Clipboard" to copy `goose-relay://` URI (contains full profile configuration)
 - Share the copied URI via messaging or link
 - Recipients copy it to clipboard and tap "From Clipboard"
 

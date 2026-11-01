@@ -71,14 +71,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.google.gson.Gson
-import com.google.gson.JsonObject
 import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
+import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import kotlinx.coroutines.launch
 
@@ -334,12 +333,8 @@ fun ProfilesScreen(
                                         text = { Text(stringResource(R.string.profiles_to_clipboard)) },
                                         onClick = {
                                             shareMenuExpanded = false
-                                            val exportObj = JsonObject()
-                                            exportObj.addProperty("name", profile.name)
-                                            exportObj.addProperty("script_keys", profile.scriptKeysText)
-                                            exportObj.addProperty("tunnel_key", profile.tunnelKey)
-                                            val json = Gson().toJson(exportObj)
-                                            val base64 = Base64.encodeToString(json.toByteArray(), Base64.NO_WRAP)
+                                            val json = ConfigGenerator.exportProfileJson(profile)
+                                            val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
                                             val protocol = "goose-relay://$base64"
                                             clipboardManager.setText(AnnotatedString(protocol))
                                         }

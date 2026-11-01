@@ -38,7 +38,23 @@ object ConfigGenerator {
         return json
     }
 
-    fun exportProfileJson(profile: ProfileEntity): String = generateConfig(profile)
+    fun exportProfileJson(profile: ProfileEntity): String {
+        val root = JsonObject().apply {
+            addProperty("name", profile.name)
+            addProperty("debug_timing", profile.debugTiming)
+            addProperty("socks_host", profile.socksHost)
+            addProperty("socks_port", profile.socksPort)
+            addProperty("socks_user", profile.socksUser)
+            addProperty("socks_pass", profile.socksPass)
+            addProperty("google_host", profile.googleHost)
+            add("sni", parseSni(profile.sniJson))
+            add("script_keys", parseScriptKeys(profile.scriptKeysText))
+            addProperty("tunnel_key", profile.tunnelKey)
+            addProperty("coalesce_step_ms", profile.coalesceStepMs)
+            addProperty("idle_slots_per_bucket", profile.idleSlotsPerBucket)
+        }
+        return gson.toJson(root)
+    }
 
     private fun parseSni(value: String): JsonArray {
         if (value.isBlank()) return JsonArray()
@@ -54,7 +70,6 @@ object ConfigGenerator {
     private fun parseScriptKeys(text: String): JsonArray {
         val keys = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
         val result = JsonArray()
-        Log.d("ConfigGenerator", "Parsing script keys: $keys")
         for (key in keys) {
             val trimmed = key.trim()
             if (trimmed.isEmpty()) continue
@@ -73,7 +88,6 @@ object ConfigGenerator {
             }
             result.add(obj)
         }
-        Log.d("ConfigGenerator", "Final script keys JSON: ${gson.toJson(result)}")
         return result
     }
 }

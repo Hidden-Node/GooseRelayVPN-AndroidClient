@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.google.common.truth.Truth.assertThat
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
+import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import org.junit.Test
 
 class ConfigGeneratorTest {
@@ -95,5 +96,73 @@ class ConfigGeneratorTest {
 
         val nonzero = parse(ConfigGenerator.generateConfig(ProfileEntity(name = "x", coalesceStepMs = 500)))
         assertThat(nonzero.get("coalesce_step_ms").asInt).isEqualTo(500)
+    }
+
+    @Test
+    fun `exportProfileJson includes name and all config properties even when defaults`() {
+        val p = ProfileEntity(
+            name = "My Profile",
+            debugTiming = false,
+            socksHost = "127.0.0.1",
+            socksPort = 1080,
+            socksUser = "",
+            socksPass = "",
+            googleHost = "216.239.38.120",
+            sniJson = "[\"example.com\"]",
+            scriptKeysText = "KEY1|acct1",
+            tunnelKey = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            coalesceStepMs = 0,
+            idleSlotsPerBucket = 2
+        )
+        val json = ConfigGenerator.exportProfileJson(p)
+        val root = parse(json)
+        assertThat(root.get("name").asString).isEqualTo("My Profile")
+        assertThat(root.get("debug_timing").asBoolean).isFalse()
+        assertThat(root.get("socks_host").asString).isEqualTo("127.0.0.1")
+        assertThat(root.get("socks_port").asInt).isEqualTo(1080)
+        assertThat(root.get("socks_user").asString).isEqualTo("")
+        assertThat(root.get("socks_pass").asString).isEqualTo("")
+        assertThat(root.get("google_host").asString).isEqualTo("216.239.38.120")
+        assertThat(root.getAsJsonArray("sni").size()).isEqualTo(1)
+        assertThat(root.getAsJsonArray("script_keys").size()).isEqualTo(1)
+        assertThat(root.get("tunnel_key").asString).isEqualTo("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+        assertThat(root.get("coalesce_step_ms").asInt).isEqualTo(0)
+        assertThat(root.get("idle_slots_per_bucket").asInt).isEqualTo(2)
+    }
+
+    @Test
+    fun `exportProfileJson roundtrips through ProfileJsonParser for all config fields`() {
+        val original = ProfileEntity(
+            name = "Full Profile",
+            debugTiming = true,
+            socksHost = "10.0.0.2",
+            socksPort = 9050,
+            socksUser = "proxyuser",
+            socksPass = "proxypass",
+            googleHost = "216.239.38.120",
+            sniJson = "[\"www.google.com\",\"mail.google.com\"]",
+            scriptKeysText = "DEP1|accA\nDEP2|accB",
+            tunnelKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            coalesceStepMs = 30,
+            idleSlotsPerBucket = 1
+        )
+        val exportedJson = ConfigGenerator.exportProfileJson(original)
+        val parsed = ProfileJsonParser.parse(exportedJson)
+        assertThat(parsed).isNotNull()
+        parsed!!
+
+        // Assert all 12 config properties (entity metadata like id, createdAt, isSelected, remoteUrl are non-config)
+        assertThat(parsed.name).isEqualTo(original.name)
+        assertThat(parsed.debugTiming).isEqualTo(original.debugTiming)
+        assertThat(parsed.socksHost).isEqualTo(original.socksHost)
+        assertThat(parsed.socksPort).isEqualTo(original.socksPort)
+        assertThat(parsed.socksUser).isEqualTo(original.socksUser)
+        assertThat(parsed.socksPass).isEqualTo(original.socksPass)
+        assertThat(parsed.googleHost).isEqualTo(original.googleHost)
+        assertThat(parsed.sniJson).isEqualTo(original.sniJson)
+        assertThat(parsed.scriptKeysText).isEqualTo(original.scriptKeysText)
+        assertThat(parsed.tunnelKey).isEqualTo(original.tunnelKey)
+        assertThat(parsed.coalesceStepMs).isEqualTo(original.coalesceStepMs)
+        assertThat(parsed.idleSlotsPerBucket).isEqualTo(original.idleSlotsPerBucket)
     }
 }
