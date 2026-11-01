@@ -79,7 +79,6 @@ object ConfigGenerator {
                 if (parts.size >= 2) {
                     obj.addProperty("id", parts[0].trim())
                     obj.addProperty("account", parts[1].trim())
-                    Log.d("ConfigGenerator", "Added script key with account: id=${parts[0].trim()}, account=${parts[1].trim()}")
                 } else {
                     obj.addProperty("id", trimmed)
                 }
