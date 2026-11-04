@@ -125,6 +125,8 @@
     <string name="global_connection_mode">حالت اتصال</string>
     <string name="global_connection_mode_help">حالت VPN یا حالت پروکسی (فقط SOCKS)</string>
     <string name="global_split_tunneling">VPN برای هر برنامه</string>
+    <string name="global_notification_speed">نمایش سرعت در اعلان</string>
+    <string name="global_notification_speed_desc">نمایش زنده سرعت آپلود و دانلود در اعلان اتصال فعال</string>
     <string name="global_sharing_internet">اشتراک‌گذاری اینترنت</string>
     <string name="global_local_ip">IP محلی: %1$s</string>
     <string name="global_socks5_port">پورت SOCKS5</string>
@@ -184,6 +186,7 @@
     <string name="notification_connecting">در حال اتصال…</string>
     <string name="notification_disconnected">VPN قطع شد</string>
     <string name="notification_proxy_active">حالت پروکسی روی پورت %1$d فعال است</string>
+    <string name="notification_action_disconnect">قطع اتصال</string>
     <string name="vpn_start_failed">شروع سرویس VPN ناموفق بود: %1$s</string>
     <string name="vpn_stop_failed">توقف سرویس VPN ناموفق بود: %1$s</string>
     <string name="common_error">خطا</string>

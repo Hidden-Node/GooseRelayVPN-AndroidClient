@@ -125,6 +125,8 @@
     <string name="global_connection_mode">Режим подключения</string>
     <string name="global_connection_mode_help">Режим VPN или режим прокси (только SOCKS)</string>
     <string name="global_split_tunneling">Раздельное туннелирование</string>
+    <string name="global_notification_speed">Показывать скорость в уведомлении</string>
+    <string name="global_notification_speed_desc">Отображение скорости загрузки и отдачи در постоянном уведомлении</string>
     <string name="global_sharing_internet">Раздача интернета</string>
     <string name="global_local_ip">Локальный IP: %1$s</string>
     <string name="global_socks5_port">Порт SOCKS5</string>
@@ -184,6 +186,7 @@
     <string name="notification_connecting">Подключение…</string>
     <string name="notification_disconnected">VPN отключен</string>
     <string name="notification_proxy_active">Режим прокси активен на порту %1$d</string>
+    <string name="notification_action_disconnect">Отключить</string>
     <string name="vpn_start_failed">Не удалось запустить службу VPN: %1$s</string>
     <string name="vpn_stop_failed">Не удалось остановить службу VPN: %1$s</string>
     <string name="common_error">Ошибка</string>

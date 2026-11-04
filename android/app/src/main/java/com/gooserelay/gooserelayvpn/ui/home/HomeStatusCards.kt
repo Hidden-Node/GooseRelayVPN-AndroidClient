@@ -29,6 +29,7 @@ import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.DisconnectedRed
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
+import com.gooserelay.gooserelayvpn.util.TrafficFormatters
 import com.gooserelay.gooserelayvpn.util.VpnManager
 
 @Composable
@@ -112,7 +113,7 @@ fun MdvConnectionTelemetryCard(
                         )
                         androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = formatDuration(connectedDurationSeconds),
+                            text = TrafficFormatters.formatDuration(connectedDurationSeconds),
                             style = MaterialTheme.typography.titleMedium,
                             color = MdvColor.OnSurface,
                             fontWeight = FontWeight.Bold
@@ -146,13 +147,13 @@ fun MdvConnectionTelemetryCard(
                             )
                             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = formatSpeed(downBps),
+                                text = TrafficFormatters.formatSpeed(downBps),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MdvColor.OnSurface,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = formatBytes(downloadTotalBytes),
+                                text = TrafficFormatters.formatBytes(downloadTotalBytes),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MdvColor.OnSurfaceVariant
                             )
@@ -177,13 +178,13 @@ fun MdvConnectionTelemetryCard(
                             )
                             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = formatSpeed(upBps),
+                                text = TrafficFormatters.formatSpeed(upBps),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MdvColor.OnSurface,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = formatBytes(uploadTotalBytes),
+                                text = TrafficFormatters.formatBytes(uploadTotalBytes),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MdvColor.OnSurfaceVariant
                             )
@@ -398,36 +399,3 @@ fun MdvErrorCard(msg: String) {
     }
 }
 
-private fun formatSpeed(bps: Long): String {
-    val kb = 1024.0
-    val mb = kb * 1024.0
-    return when {
-        bps >= mb -> String.format("%.2f MB/s", bps / mb)
-        bps >= kb -> String.format("%.1f KB/s", bps / kb)
-        else -> "${bps} B/s"
-    }
-}
-
-private fun formatBytes(bytes: Long): String {
-    val kb = 1024.0
-    val mb = kb * 1024.0
-    val gb = mb * 1024.0
-    return when {
-        bytes >= gb -> String.format("%.2f GB", bytes / gb)
-        bytes >= mb -> String.format("%.2f MB", bytes / mb)
-        bytes >= kb -> String.format("%.1f KB", bytes / kb)
-        else -> "$bytes B"
-    }
-}
-
-private fun formatDuration(seconds: Long): String {
-    val safeSeconds = seconds.coerceAtLeast(0L)
-    val hours = safeSeconds / 3600L
-    val minutes = (safeSeconds % 3600L) / 60L
-    val secs = safeSeconds % 60L
-    return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, secs)
-    } else {
-        "%02d:%02d".format(minutes, secs)
-    }
-}

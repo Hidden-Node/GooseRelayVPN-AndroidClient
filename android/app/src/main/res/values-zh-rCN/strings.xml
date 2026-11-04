@@ -125,6 +125,8 @@
     <string name="global_connection_mode">连接模式</string>
     <string name="global_connection_mode_help">VPN 模式或代理模式（仅 SOCKS）</string>
     <string name="global_split_tunneling">分应用代理</string>
+    <string name="global_notification_speed">在通知中显示实时网速</string>
+    <string name="global_notification_speed_desc">在状态栏常驻通知中实时显示上传和下载速度</string>
     <string name="global_sharing_internet">共享网络</string>
     <string name="global_local_ip">本地 IP：%1$s</string>
     <string name="global_socks5_port">SOCKS5 端口</string>
@@ -184,6 +186,7 @@
     <string name="notification_connecting">正在连接…</string>
     <string name="notification_disconnected">VPN 已断开</string>
     <string name="notification_proxy_active">代理模式已在端口 %1$d 上启用</string>
+    <string name="notification_action_disconnect">断开连接</string>
     <string name="vpn_start_failed">启动 VPN 服务失败：%1$s</string>
     <string name="vpn_stop_failed">停止 VPN 服务失败：%1$s</string>
     <string name="common_error">错误</string>

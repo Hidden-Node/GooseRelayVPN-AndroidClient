@@ -349,6 +349,17 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 }
                             }
                         }
+
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(vertical = MdvSpace.S1),
+                            color = MdvColor.OutlineVariant.copy(alpha = 0.5f)
+                        )
+                        RowSwitch(
+                            title = stringResource(R.string.global_notification_speed),
+                            subtitle = stringResource(R.string.global_notification_speed_desc),
+                            checked = draft.notificationSpeedEnabled,
+                            onChecked = { draft = draft.copy(notificationSpeedEnabled = it) }
+                        )
                     }
                 }
             }
@@ -746,16 +757,31 @@ private fun RowSwitch(
     title: String,
     checked: Boolean,
     enabled: Boolean = true,
+    subtitle: String? = null,
     onChecked: (Boolean) -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            title,
-            color = if (enabled) LocalContentColor.current else LocalContentColor.current.copy(alpha = 0.38f)
-        )
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .padding(end = MdvSpace.S2)
+        ) {
+            Text(
+                title,
+                color = if (enabled) LocalContentColor.current else LocalContentColor.current.copy(alpha = 0.38f)
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (enabled) MdvColor.OnSurfaceVariant else MdvColor.OnSurfaceVariant.copy(alpha = 0.38f)
+                )
+            }
+        }
         Switch(checked = checked, onCheckedChange = onChecked, enabled = enabled)
     }
 }

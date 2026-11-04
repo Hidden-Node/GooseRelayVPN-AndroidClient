@@ -13,6 +13,7 @@ class GlobalSettingsStoreTest {
         val settings = GlobalSettings()
         assertThat(settings.splitTunnelMode).isEqualTo(SplitTunnelMode.INCLUDE)
         assertThat(settings.splitTunnelingEnabled).isFalse()
+        assertThat(settings.notificationSpeedEnabled).isTrue()
     }
 
     @Test

@@ -1,8 +1,12 @@
 package com.gooserelay.gooserelayvpn.service
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.IpPrefix
 import android.net.VpnService
@@ -12,12 +16,14 @@ import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.gooserelay.gooserelayvpn.App
 import com.gooserelay.gooserelayvpn.MainActivity
 import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.GlobalSettingsStore
+import com.gooserelay.gooserelayvpn.util.TrafficFormatters
 import com.gooserelay.gooserelayvpn.util.VpnManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
@@ -89,6 +95,35 @@ class GooseRelayVpnService : VpnService() {
 
     private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
 
+    private val notificationManager: NotificationManager by lazy {
+        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
+
+    private val contentPendingIntent: PendingIntent by lazy {
+        PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
+    private val disconnectPendingIntent: PendingIntent by lazy {
+        PendingIntent.getService(
+            this, 1,
+            Intent(this, GooseRelayVpnService::class.java).apply {
+                action = ACTION_DISCONNECT
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
+    @Volatile private var notificationSpeedEnabled = true
+    @Volatile private var screenStateReceiver: BroadcastReceiver? = null
+    @Volatile private var notificationTickerJob: Job? = null
+    @Volatile private var activeProfileName: String? = null
+    @Volatile private var lastSpeedText: String? = null
+    @Volatile private var lastDurationMinute: Long = -1L
+
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "VPN Service created")
@@ -102,7 +137,7 @@ class GooseRelayVpnService : VpnService() {
             // ForegroundServiceDidNotStartInTimeException on Android 12+,
             // then stop cleanly.
             runCatching {
-                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_disconnected)))
+                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_disconnected), withDisconnectAction = false))
             }.onFailure { Log.w(TAG, "startForeground on restart failed", it) }
             VpnManager.updateState(VpnManager.VpnState.DISCONNECTED)
             // startId-qualified: stop only if no newer start (e.g. a real
@@ -128,6 +163,9 @@ class GooseRelayVpnService : VpnService() {
         connectJob?.cancel()
         gvisorWatchdogJob?.cancel()
         gvisorWatchdogJob = null
+        stopNotificationTicker()
+        lastSpeedText = null
+        lastDurationMinute = -1L
         // A new session is starting on this instance: re-enable the network
         // callback (stopVpn() left isStopping=true on purpose so onDestroy
         // skips double-cleanup; a same-instance reconnect must clear it).
@@ -140,16 +178,38 @@ class GooseRelayVpnService : VpnService() {
                 sessionBusyWarningShown = false
 
                 // Show foreground notification
-                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_connecting)))
+                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_connecting), withDisconnectAction = true))
                 acquireWakeLock()
 
                 // Load profile from DB
                 val profile = profileRepository.getProfileById(profileId)
                     ?: throw IllegalStateException("Profile not found")
+                activeProfileName = profile.name
                 val socksPort = profile.socksPort.takeIf { it in 1..65535 } ?: DEFAULT_SOCKS_PORT
                 activeLocalSocksPort = socksPort
                 val globalSettings = GlobalSettingsStore.load(this@GooseRelayVpnService)
+                notificationSpeedEnabled = globalSettings.notificationSpeedEnabled
                 val proxyMode = globalSettings.connectionMode.equals("PROXY", ignoreCase = true)
+
+                screenStateReceiver?.let { runCatching { unregisterReceiver(it) } }
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        when (intent?.action) {
+                            Intent.ACTION_SCREEN_OFF -> stopNotificationTicker()
+                            Intent.ACTION_SCREEN_ON -> {
+                                if (!isStopping.get() && VpnManager.state.value == VpnManager.VpnState.CONNECTED) {
+                                    startNotificationTicker()
+                                }
+                            }
+                        }
+                    }
+                }
+                screenStateReceiver = receiver
+                val filter = IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
+                }
+                ContextCompat.registerReceiver(this@GooseRelayVpnService, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
 
                 VpnManager.appendLog("Loading profile: ${profile.name}")
                 VpnManager.appendLog("Global Settings Loaded - connectionMode: ${globalSettings.connectionMode}")
@@ -232,9 +292,11 @@ class GooseRelayVpnService : VpnService() {
                     acquireWifiLock()
                     VpnManager.updateState(VpnManager.VpnState.CONNECTED)
                     VpnManager.startTrafficMonitor(this@GooseRelayVpnService)
-                    val notification = buildNotification(getString(R.string.notification_proxy_active, socksPort))
-                    val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-                    manager.notify(NOTIFICATION_ID, notification)
+                    val notification = buildNotification(
+                        getString(R.string.notification_proxy_active, socksPort),
+                        withDisconnectAction = true
+                    )
+                    notificationManager.notify(NOTIFICATION_ID, notification)
                     startKeepalive()
                     return@launch
                 }
@@ -409,9 +471,13 @@ class GooseRelayVpnService : VpnService() {
                 VpnManager.appendLog("VPN connected successfully!")
 
                 // Update notification
-                val notification = buildNotification(getString(R.string.notification_connected))
-                val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-                manager.notify(NOTIFICATION_ID, notification)
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                if (pm.isInteractive) {
+                    startNotificationTicker()
+                } else {
+                    val notif = buildConnectedNotification(null, 0L, 0L, 0L)
+                    runCatching { notificationManager.notify(NOTIFICATION_ID, notif) }
+                }
 
             } catch (e: CancellationException) {
                 VpnManager.appendLog("Connection canceled")
@@ -428,6 +494,11 @@ class GooseRelayVpnService : VpnService() {
     private fun stopVpn() {
         gvisorWatchdogJob?.cancel()
         gvisorWatchdogJob = null
+        stopNotificationTicker()
+        screenStateReceiver?.let { receiver ->
+            runCatching { unregisterReceiver(receiver) }
+            screenStateReceiver = null
+        }
         if (!isStopping.compareAndSet(false, true)) return
         
         VpnManager.updateState(VpnManager.VpnState.DISCONNECTING)
@@ -516,23 +587,111 @@ class GooseRelayVpnService : VpnService() {
         }
     }
 
-    private fun buildNotification(text: String): Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        return NotificationCompat.Builder(this, App.CHANNEL_ID)
+    private fun buildNotification(text: String, withDisconnectAction: Boolean = false): Notification {
+        val builder = NotificationCompat.Builder(this, App.CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_vpn_key)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(contentPendingIntent)
             .setOngoing(true)
-            .build()
+
+        if (withDisconnectAction) {
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    0,
+                    getString(R.string.notification_action_disconnect),
+                    disconnectPendingIntent
+                ).build()
+            )
+        }
+        return builder.build()
+    }
+
+    private fun buildConnectedNotification(
+        speedText: String?,
+        durationSec: Long,
+        totalUp: Long,
+        totalDown: Long
+    ): Notification {
+        val builder = NotificationCompat.Builder(this, App.CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_vpn_key)
+            .setContentIntent(contentPendingIntent)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    0,
+                    getString(R.string.notification_action_disconnect),
+                    disconnectPendingIntent
+                ).build()
+            )
+
+        val title = activeProfileName ?: getString(R.string.app_name)
+        val durationStr = TrafficFormatters.formatDuration(durationSec)
+        val upStr = TrafficFormatters.formatBytes(totalUp)
+        val downStr = TrafficFormatters.formatBytes(totalDown)
+
+        if (speedText != null && notificationSpeedEnabled) {
+            builder.setContentTitle("$title  •  $speedText")
+            builder.setContentText("$durationStr  |  ↑ $upStr  ↓ $downStr")
+            builder.setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "$speedText\n$durationStr  |  ↑ $upStr  ↓ $downStr"
+                )
+            )
+        } else {
+            builder.setContentTitle(title)
+            builder.setContentText(getString(R.string.notification_connected))
+        }
+        return builder.build()
+    }
+
+    private fun startNotificationTicker() {
+        notificationTickerJob?.cancel()
+        if (!notificationSpeedEnabled) {
+            val notif = buildConnectedNotification(null, 0L, 0L, 0L)
+            runCatching { notificationManager.notify(NOTIFICATION_ID, notif) }
+            return
+        }
+        notificationTickerJob = serviceScope.launch {
+            while (isActive && !isStopping.get()) {
+                if (VpnManager.state.value != VpnManager.VpnState.CONNECTED) break
+                val up = VpnManager.uploadSpeedBps.value
+                val down = VpnManager.downloadSpeedBps.value
+                val duration = VpnManager.connectedDurationSeconds.value
+                val totalUp = VpnManager.uploadTotalBytes.value
+                val totalDown = VpnManager.downloadTotalBytes.value
+
+                val speedText = "↑ ${TrafficFormatters.formatSpeed(up)}   ↓ ${TrafficFormatters.formatSpeed(down)}"
+                val currentMinute = duration / 60
+
+                // Zero-speed suppression: If both speeds are 0, only re-notify on minute boundary
+                val isZeroSpeed = (up == 0L && down == 0L)
+                val isRedundantZero = isZeroSpeed && (lastSpeedText == speedText) && (currentMinute == lastDurationMinute)
+
+                if (!isRedundantZero) {
+                    lastSpeedText = speedText
+                    lastDurationMinute = currentMinute
+                    val notif = buildConnectedNotification(speedText, duration, totalUp, totalDown)
+                    runCatching { notificationManager.notify(NOTIFICATION_ID, notif) }
+                }
+                delay(2500L)
+            }
+        }
+    }
+
+    private fun stopNotificationTicker() {
+        notificationTickerJob?.cancel()
+        notificationTickerJob = null
     }
 
     override fun onDestroy() {
+        stopNotificationTicker()
+        screenStateReceiver?.let { receiver ->
+            runCatching { unregisterReceiver(receiver) }
+            screenStateReceiver = null
+        }
         // Normal path: stopVpn() already ran — Go layer guards make re-calls no-ops.
         // Force-kill path: stopVpn() was never called, so do full cleanup.
         if (!isStopping.get()) {
