@@ -126,7 +126,7 @@
     <string name="global_connection_mode_help">Режим VPN или режим прокси (только SOCKS)</string>
     <string name="global_split_tunneling">Раздельное туннелирование</string>
     <string name="global_notification_speed">Показывать скорость в уведомлении</string>
-    <string name="global_notification_speed_desc">Отображение скорости загрузки и отдачи در постоянном уведомлении</string>
+    <string name="global_notification_speed_desc">Отображение скорости загрузки и отдачи в постоянном уведомлении</string>
     <string name="global_sharing_internet">Раздача интернета</string>
     <string name="global_local_ip">Локальный IP: %1$s</string>
     <string name="global_socks5_port">Порт SOCKS5</string>

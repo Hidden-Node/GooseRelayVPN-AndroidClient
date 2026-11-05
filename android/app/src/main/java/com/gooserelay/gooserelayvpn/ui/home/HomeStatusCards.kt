@@ -123,7 +123,7 @@ fun MdvConnectionTelemetryCard(
             }
 
             // Network Traffic Grid
-            if (downloadTotalBytes > 0 || uploadTotalBytes > 0 || downBps > 0 || upBps > 0) {
+            if (vpnState == VpnManager.VpnState.CONNECTED || downloadTotalBytes > 0 || uploadTotalBytes > 0 || downBps > 0 || upBps > 0) {
                 androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(MdvSpace.S3))
                 Row(
                     modifier = Modifier.fillMaxWidth(),

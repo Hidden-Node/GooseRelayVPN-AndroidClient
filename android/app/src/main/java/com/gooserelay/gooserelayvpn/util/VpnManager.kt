@@ -2,6 +2,8 @@ package com.gooserelay.gooserelayvpn.util
 
 import android.content.Context
 import android.content.Intent
+import android.net.TrafficStats
+import android.os.Process
 import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.service.GooseRelayVpnService
@@ -190,11 +192,25 @@ object VpnManager {
         _scanStatus.value = ScanStatus()
     }
 
-    fun startTrafficMonitor(context: Context) {
+    internal fun computeTrafficDelta(current: Long, previous: Long): Long {
+        if (current < 0L || previous < 0L) return 0L
+        return (current - previous).coerceAtLeast(0L)
+    }
+
+    fun startTrafficMonitor(context: Context, isProxyMode: Boolean = false) {
         trafficMonitorJob?.cancel()
         trafficMonitorJob = monitorScope.launch {
-            var prevTx = 0L
-            var prevRx = 0L
+            val uid = Process.myUid()
+            var prevTx: Long
+            var prevRx: Long
+            if (isProxyMode) {
+                prevTx = TrafficStats.getUidTxBytes(uid)
+                prevRx = TrafficStats.getUidRxBytes(uid)
+            } else {
+                val initialBw = mobile.Mobile.getTunBandwidth()
+                prevTx = initialBw?.up ?: 0L
+                prevRx = initialBw?.down ?: 0L
+            }
             var prevTime = System.currentTimeMillis()
             val startedAt = prevTime
             _uploadTotalBytes.value = 0L
@@ -203,19 +219,56 @@ object VpnManager {
             while (isActive) {
                 delay(1000L)
                 val now = System.currentTimeMillis()
-                val bandwidth = mobile.Mobile.getTunBandwidth()
-                val tx = bandwidth?.up ?: 0L
-                val rx = bandwidth?.down ?: 0L
+                val tx: Long
+                val rx: Long
+                if (isProxyMode) {
+                    tx = TrafficStats.getUidTxBytes(uid)
+                    rx = TrafficStats.getUidRxBytes(uid)
+                } else {
+                    val bandwidth = mobile.Mobile.getTunBandwidth()
+                    tx = bandwidth?.up ?: 0L
+                    rx = bandwidth?.down ?: 0L
+                }
                 val dt = (now - prevTime).coerceAtLeast(1L)
-                val uploadDelta = (tx - prevTx).coerceAtLeast(0L)
-                val downloadDelta = (rx - prevRx).coerceAtLeast(0L)
-                _uploadSpeedBps.value = (uploadDelta * 1000L) / dt
-                _downloadSpeedBps.value = (downloadDelta * 1000L) / dt
-                _uploadTotalBytes.value = tx
-                _downloadTotalBytes.value = rx
-                _connectedDurationSeconds.value = ((now - startedAt) / 1000L).coerceAtLeast(0L)
-                prevTx = tx
-                prevRx = rx
+                val uploadDelta = if (isProxyMode) {
+                    computeTrafficDelta(current = tx, previous = prevTx)
+                } else {
+                    (tx - prevTx).coerceAtLeast(0L)
+                }
+                val downloadDelta = if (isProxyMode) {
+                    computeTrafficDelta(current = rx, previous = prevRx)
+                } else {
+                    (rx - prevRx).coerceAtLeast(0L)
+                }
+
+                val newUploadSpeed = (uploadDelta * 1000L) / dt
+                val newDownloadSpeed = (downloadDelta * 1000L) / dt
+                val newUploadTotal = if (isProxyMode) {
+                    _uploadTotalBytes.value + uploadDelta
+                } else {
+                    tx
+                }
+                val newDownloadTotal = if (isProxyMode) {
+                    _downloadTotalBytes.value + downloadDelta
+                } else {
+                    rx
+                }
+                val newDuration = ((now - startedAt) / 1000L).coerceAtLeast(0L)
+
+                if (!isActive) break
+                if (newUploadSpeed != _uploadSpeedBps.value) _uploadSpeedBps.value = newUploadSpeed
+                if (newDownloadSpeed != _downloadSpeedBps.value) _downloadSpeedBps.value = newDownloadSpeed
+                if (newUploadTotal != _uploadTotalBytes.value) _uploadTotalBytes.value = newUploadTotal
+                if (newDownloadTotal != _downloadTotalBytes.value) _downloadTotalBytes.value = newDownloadTotal
+                if (newDuration != _connectedDurationSeconds.value) _connectedDurationSeconds.value = newDuration
+
+                if (isProxyMode) {
+                    if (tx >= 0L) prevTx = tx
+                    if (rx >= 0L) prevRx = rx
+                } else {
+                    prevTx = tx
+                    prevRx = rx
+                }
                 prevTime = now
             }
         }

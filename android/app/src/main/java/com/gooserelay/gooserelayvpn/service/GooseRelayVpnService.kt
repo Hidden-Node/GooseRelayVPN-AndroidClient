@@ -121,6 +121,7 @@ class GooseRelayVpnService : VpnService() {
     @Volatile private var screenStateReceiver: BroadcastReceiver? = null
     @Volatile private var notificationTickerJob: Job? = null
     @Volatile private var activeProfileName: String? = null
+    @Volatile private var activeStatusText: String? = null
     @Volatile private var lastSpeedText: String? = null
     @Volatile private var lastDurationMinute: Long = -1L
 
@@ -166,6 +167,7 @@ class GooseRelayVpnService : VpnService() {
         stopNotificationTicker()
         lastSpeedText = null
         lastDurationMinute = -1L
+        activeStatusText = null
         // A new session is starting on this instance: re-enable the network
         // callback (stopVpn() left isStopping=true on purpose so onDestroy
         // skips double-cleanup; a same-instance reconnect must clear it).
@@ -291,12 +293,15 @@ class GooseRelayVpnService : VpnService() {
                     VpnManager.appendLog("Proxy mode active: skipping Android VpnService TUN setup")
                     acquireWifiLock()
                     VpnManager.updateState(VpnManager.VpnState.CONNECTED)
-                    VpnManager.startTrafficMonitor(this@GooseRelayVpnService)
-                    val notification = buildNotification(
-                        getString(R.string.notification_proxy_active, socksPort),
-                        withDisconnectAction = true
-                    )
-                    notificationManager.notify(NOTIFICATION_ID, notification)
+                    VpnManager.startTrafficMonitor(this@GooseRelayVpnService, isProxyMode = true)
+                    activeStatusText = getString(R.string.notification_proxy_active, socksPort)
+                    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    if (pm.isInteractive) {
+                        startNotificationTicker()
+                    } else {
+                        val notif = buildConnectedNotification(null, 0L, 0L, 0L)
+                        runCatching { notificationManager.notify(NOTIFICATION_ID, notif) }
+                    }
                     startKeepalive()
                     return@launch
                 }
@@ -467,10 +472,10 @@ class GooseRelayVpnService : VpnService() {
 
                 // Update state
                 VpnManager.updateState(VpnManager.VpnState.CONNECTED)
-                VpnManager.startTrafficMonitor(this@GooseRelayVpnService)
+                VpnManager.startTrafficMonitor(this@GooseRelayVpnService, isProxyMode = false)
                 VpnManager.appendLog("VPN connected successfully!")
 
-                // Update notification
+                activeStatusText = getString(R.string.notification_connected)
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 if (pm.isInteractive) {
                     startNotificationTicker()
@@ -495,6 +500,7 @@ class GooseRelayVpnService : VpnService() {
         gvisorWatchdogJob?.cancel()
         gvisorWatchdogJob = null
         stopNotificationTicker()
+        activeStatusText = null
         screenStateReceiver?.let { receiver ->
             runCatching { unregisterReceiver(receiver) }
             screenStateReceiver = null
@@ -628,21 +634,22 @@ class GooseRelayVpnService : VpnService() {
             )
 
         val title = activeProfileName ?: getString(R.string.app_name)
+        val status = activeStatusText ?: getString(R.string.notification_connected)
         val durationStr = TrafficFormatters.formatDuration(durationSec)
         val upStr = TrafficFormatters.formatBytes(totalUp)
         val downStr = TrafficFormatters.formatBytes(totalDown)
 
         if (speedText != null && notificationSpeedEnabled) {
             builder.setContentTitle("$title  •  $speedText")
-            builder.setContentText("$durationStr  |  ↑ $upStr  ↓ $downStr")
+            builder.setContentText("$status  |  $durationStr")
             builder.setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    "$speedText\n$durationStr  |  ↑ $upStr  ↓ $downStr"
+                    "$status\n$speedText\n$durationStr  |  ↑ $upStr  ↓ $downStr"
                 )
             )
         } else {
             builder.setContentTitle(title)
-            builder.setContentText(getString(R.string.notification_connected))
+            builder.setContentText(status)
         }
         return builder.build()
     }
