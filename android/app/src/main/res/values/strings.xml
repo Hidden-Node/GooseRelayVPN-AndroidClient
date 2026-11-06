@@ -83,6 +83,9 @@
     <string name="profiles_empty_desc">Tap the + button above to add a profile\nor import from clipboard/file</string>
     <string name="profiles_to_clipboard">to Clipboard</string>
     <string name="profiles_to_json">to JSON</string>
+    <string name="profiles_share_sheet">Share via…</string>
+    <string name="profiles_share_title">Share Profile</string>
+    <string name="profiles_import_deep_link_success">Profile imported: %s</string>
     <string name="profiles_remote_url">Remote URL (Subscription)</string>
     <string name="profiles_remote_url_help">If set, this profile will update from this URL</string>
     <string name="profiles_name">Profile Name</string>

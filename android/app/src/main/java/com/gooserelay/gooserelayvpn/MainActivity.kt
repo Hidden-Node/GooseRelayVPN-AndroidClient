@@ -18,6 +18,7 @@ import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
 import com.gooserelay.gooserelayvpn.ui.navigation.AppNavigation
 import com.gooserelay.gooserelayvpn.ui.theme.GooseRelayVPNTheme
+import com.gooserelay.gooserelayvpn.util.GooseRelayProtocol
 import com.gooserelay.gooserelayvpn.util.ImportIntentGate
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import dagger.hilt.android.AndroidEntryPoint
@@ -42,6 +43,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         lastHandledImportUri = savedInstanceState?.getString(ImportIntentGate.KEY_LAST_HANDLED_URI)
         if (savedInstanceState == null) handleJsonImportIntent(intent, isFirstCreation = true)
+        if (savedInstanceState == null) handleDeepLinkIntent(intent)
         if (savedInstanceState == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -65,6 +67,7 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleJsonImportIntent(intent, isFirstCreation = true)
+        handleDeepLinkIntent(intent)
     }
 
     private fun handleJsonImportIntent(intent: Intent?, isFirstCreation: Boolean) {
@@ -114,6 +117,47 @@ class MainActivity : AppCompatActivity() {
                 R.string.profiles_json_imported_msg,
                 Toast.LENGTH_SHORT
             ).show()
+        }
+    }
+
+    private fun handleDeepLinkIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val data = intent.data ?: return
+        if (data.scheme != "goose-relay") return
+        val rawUri = data.toString()  // use toString(), NOT host/path — see note below
+        // Reuse the existing gate (isFirstCreation + already-handled token, restored
+        // from savedInstanceState in onCreate) instead of a bare rawUri equality check.
+        if (!ImportIntentGate.shouldHandle(true, rawUri, lastHandledImportUri)) return
+
+        val parsed = GooseRelayProtocol.parse(rawUri)
+        // Mark handled + clear synchronously BEFORE any async work, exactly like
+        // handleJsonImportIntent (91-94), so rotation / process restore cannot re-import.
+        lastHandledImportUri = rawUri
+        intent.action = null
+        intent.data = null
+        setIntent(intent)
+
+        if (parsed == null) {
+            // LENGTH_LONG to match the existing import-failure Toast (MainActivity.kt:106).
+            Toast.makeText(this@MainActivity, R.string.profiles_import_failed_general, Toast.LENGTH_LONG).show()
+            return
+        }
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                // insertProfileAndSelectIfFirst intentionally does NOT switch the active
+                // VPN (it only auto-selects when the DB is empty, like ProfilesViewModel's
+                // addProfile). That differs from the JSON file-intent path, which always
+                // calls setSelectedProfile — deep-link import must not hijack the active
+                // connection mid-session.
+                profileRepository.insertProfileAndSelectIfFirst(parsed)
+            }
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.profiles_import_deep_link_success, parsed.name),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 

@@ -7,6 +7,7 @@ import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
 import com.gooserelay.gooserelayvpn.ui.profiles.ProfilesViewModel
 import com.gooserelay.gooserelayvpn.ui.settings.SettingsViewModel
+import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -282,5 +283,36 @@ class ProfileJsonParserTest {
         )!!
         assertThat(p.name).isEqualTo("fallback")
         assertThat(p.remoteUrl).isEqualTo("https://example.com/p.json")
+    }
+
+    @Test
+    fun `exportProfileJson round-trips through ProfileJsonParser`() {
+        val profile = ProfileEntity(
+            name = "Work",
+            debugTiming = true,
+            socksHost = "0.0.0.0",
+            socksPort = 2080,
+            socksUser = "u",
+            socksPass = "p",
+            googleHost = "1.2.3.4",
+            sniJson = """["a.com","b.com"]""",
+            scriptKeysText = "ID1|a@x.com\nplain-key",
+            tunnelKey = "TKEY",
+            coalesceStepMs = 7,
+            idleSlotsPerBucket = 3
+        )
+        val p = ProfileJsonParser.parse(ConfigGenerator.exportProfileJson(profile))!!
+        assertThat(p.name).isEqualTo(profile.name)
+        assertThat(p.debugTiming).isEqualTo(profile.debugTiming)
+        assertThat(p.socksHost).isEqualTo(profile.socksHost)
+        assertThat(p.socksPort).isEqualTo(profile.socksPort)
+        assertThat(p.socksUser).isEqualTo(profile.socksUser)
+        assertThat(p.socksPass).isEqualTo(profile.socksPass)
+        assertThat(p.googleHost).isEqualTo(profile.googleHost)
+        assertThat(p.sniJson).isEqualTo(profile.sniJson)
+        assertThat(p.scriptKeysText).isEqualTo(profile.scriptKeysText)
+        assertThat(p.tunnelKey).isEqualTo(profile.tunnelKey)
+        assertThat(p.coalesceStepMs).isEqualTo(profile.coalesceStepMs)
+        assertThat(p.idleSlotsPerBucket).isEqualTo(profile.idleSlotsPerBucket)
     }
 }

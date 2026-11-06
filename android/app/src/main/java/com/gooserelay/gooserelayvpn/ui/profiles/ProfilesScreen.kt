@@ -1,6 +1,8 @@
 package com.gooserelay.gooserelayvpn.ui.profiles
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -79,6 +81,7 @@ import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
+import com.gooserelay.gooserelayvpn.util.GooseRelayProtocol
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import kotlinx.coroutines.launch
 
@@ -111,19 +114,6 @@ fun scriptKeysToText(entries: List<ScriptKeyEntry>): String {
             if (entry.account.isNotBlank()) "${entry.id}|${entry.account}" else entry.id
         }
     return result
-}
-
-fun parseGooseRelayProtocol(raw: String): ProfileEntity? {
-    val trimmed = raw.trim()
-    if (!trimmed.startsWith("goose-relay://")) return null
-    return try {
-        val base64Content = trimmed.substring("goose-relay://".length)
-        val decodedBytes = Base64.decode(base64Content, Base64.DEFAULT)
-        val decodedString = String(decodedBytes)
-        ProfileJsonParser.parse(decodedString)
-    } catch (_: Exception) {
-        null
-    }
 }
 
 private fun getFileNameFromUri(context: Context, uri: Uri): String? {
@@ -222,7 +212,7 @@ fun ProfilesScreen(
                                                 viewModel.importProfileFromUrl(text, context)
                                             }
                                             else -> {
-                                                val profile = parseGooseRelayProtocol(text) ?: ProfileJsonParser.parse(text)
+                                                val profile = GooseRelayProtocol.parse(text) ?: ProfileJsonParser.parse(text)
                                                 if (profile != null) {
                                                     viewModel.addProfile(profile)
                                                 } else {
@@ -346,6 +336,26 @@ fun ProfilesScreen(
                                             shareMenuExpanded = false
                                             exportTargetId = profile.id
                                             exportLauncher.launch("goose_profile_${profile.name}.json")
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.profiles_share_sheet)) },
+                                        onClick = {
+                                            shareMenuExpanded = false
+                                            val json = ConfigGenerator.exportProfileJson(profile)
+                                            val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                                            val url = "goose-relay://$base64"
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_SUBJECT, profile.name)
+                                                putExtra(Intent.EXTRA_TEXT, url)
+                                            }
+                                            val chooser = Intent.createChooser(sendIntent, context.getString(R.string.profiles_share_title))
+                                            try {
+                                                context.startActivity(chooser)
+                                            } catch (_: ActivityNotFoundException) {
+                                                showErrorDialog = context.getString(R.string.profiles_import_failed_general)
+                                            }
                                         }
                                     )
                                 }

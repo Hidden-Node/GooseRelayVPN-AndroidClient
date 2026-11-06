@@ -83,6 +83,9 @@
     <string name="profiles_empty_desc">点击上方的 + 按钮添加配置文件\n或从剪贴板/文件导入</string>
     <string name="profiles_to_clipboard">到剪贴板</string>
     <string name="profiles_to_json">到 JSON 文件</string>
+    <string name="profiles_share_sheet">通过…分享</string>
+    <string name="profiles_share_title">分享配置文件</string>
+    <string name="profiles_import_deep_link_success">配置文件已导入：%s</string>
     <string name="profiles_remote_url">远程 URL（订阅链接）</string>
     <string name="profiles_remote_url_help">如果设置，该配置文件将从此 URL 更新</string>
     <string name="profiles_name">配置文件名称</string>

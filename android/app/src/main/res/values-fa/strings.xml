@@ -83,6 +83,9 @@
     <string name="profiles_empty_desc">برای افزودن پروفایل روی دکمه + بالا ضربه بزنید\nیا از کلیپ‌بورد/فایل وارد کنید</string>
     <string name="profiles_to_clipboard">در کلیپ‌بورد</string>
     <string name="profiles_to_json">به فرمت JSON</string>
+    <string name="profiles_share_sheet">اشتراک‌گذاری از طریق…</string>
+    <string name="profiles_share_title">اشتراک‌گذاری پروفایل</string>
+    <string name="profiles_import_deep_link_success">پروفایل وارد شد: %s</string>
     <string name="profiles_remote_url">آدرس ریموت (لینک اشتراک)</string>
     <string name="profiles_remote_url_help">در صورت تنظیم، این پروفایل از این آدرس به‌روزرسانی می‌شود</string>
     <string name="profiles_name">نام پروفایل</string>

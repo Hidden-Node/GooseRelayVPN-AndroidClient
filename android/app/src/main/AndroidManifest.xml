@@ -63,6 +63,12 @@
                 <data android:scheme="file" />
                 <data android:pathPattern=".*\\.json" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="goose-relay" />
+            </intent-filter>
         </activity>
 
         <service

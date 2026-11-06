@@ -83,6 +83,9 @@
     <string name="profiles_empty_desc">Нажмите кнопку + вверху, чтобы добавить профиль\nили импортируйте из буфера/файла</string>
     <string name="profiles_to_clipboard">в буфер обмена</string>
     <string name="profiles_to_json">в JSON</string>
+    <string name="profiles_share_sheet">Поделиться через…</string>
+    <string name="profiles_share_title">Поделиться профилем</string>
+    <string name="profiles_import_deep_link_success">Профиль импортирован: %s</string>
     <string name="profiles_remote_url">Удаленный URL (подписка)</string>
     <string name="profiles_remote_url_help">Если указан, профиль будет обновляться по этому URL</string>
     <string name="profiles_name">Имя профиля</string>
