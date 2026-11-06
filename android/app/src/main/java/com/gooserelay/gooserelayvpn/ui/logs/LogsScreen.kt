@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -43,10 +44,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gooserelay.gooserelayvpn.R
@@ -325,73 +330,77 @@ private fun LogStatCard(
 
 @Composable
 private fun LogEntryCard(item: UiLogItem) {
-    val sourceLabel = when (item.source) {
-        VpnManager.LogSource.CORE -> stringResource(R.string.logs_filter_core)
-        VpnManager.LogSource.ANDROID -> stringResource(R.string.logs_filter_android)
-    }
-    val (severityLabel, severityColor, severityContainer) = severityUi(item.severity)
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        val sourceLabel = when (item.source) {
+            VpnManager.LogSource.CORE -> stringResource(R.string.logs_filter_core)
+            VpnManager.LogSource.ANDROID -> stringResource(R.string.logs_filter_android)
+        }
+        val (severityLabel, severityColor, severityContainer) = severityUi(item.severity)
 
-    MdvCardLow(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(MdvSpace.S3)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(MdvSpace.S1),
-                verticalAlignment = Alignment.CenterVertically
+        MdvCardLow(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(MdvSpace.S3)
             ) {
-                ToneChip(
-                    label = severityLabel,
-                    contentColor = severityColor,
-                    containerColor = severityContainer
-                )
-                ToneChip(
-                    label = sourceLabel,
-                    contentColor = MdvColor.Primary,
-                    containerColor = MdvColor.PrimaryContainer.copy(alpha = 0.16f)
-                )
-                androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
-                if (!item.timestamp.isNullOrBlank()) {
-                    Text(
-                        text = item.timestamp,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MdvColor.OnSurfaceVariant,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            Text(
-                text = item.message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MdvColor.OnSurface,
-                modifier = Modifier.padding(top = MdvSpace.S2)
-            )
-
-            if (item.details.isNotEmpty()) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = MdvSpace.S2),
-                    shape = RoundedCornerShape(MdvRadius.Md),
-                    color = MdvColor.SurfaceLowest
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(MdvSpace.S1),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = item.details.joinToString("\n"),
-                        style = MaterialTheme.typography.bodySmall.copy(
+                    ToneChip(
+                        label = severityLabel,
+                        contentColor = severityColor,
+                        containerColor = severityContainer
+                    )
+                    ToneChip(
+                        label = sourceLabel,
+                        contentColor = MdvColor.Primary,
+                        containerColor = MdvColor.PrimaryContainer.copy(alpha = 0.16f)
+                    )
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
+                    if (!item.timestamp.isNullOrBlank()) {
+                        Text(
+                            text = item.timestamp,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MdvColor.OnSurfaceVariant,
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            lineHeight = 18.sp
-                        ),
-                        color = MdvColor.OnSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Text(
+                    text = item.message,
+                    style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr, textAlign = TextAlign.Left),
+                    color = MdvColor.OnSurface,
+                    modifier = Modifier.padding(top = MdvSpace.S2)
+                )
+
+                if (item.details.isNotEmpty()) {
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = MdvSpace.S2, vertical = MdvSpace.S2)
-                    )
+                            .padding(top = MdvSpace.S2),
+                        shape = RoundedCornerShape(MdvRadius.Md),
+                        color = MdvColor.SurfaceLowest
+                    ) {
+                        Text(
+                            text = item.details.joinToString("\n"),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp,
+                                textDirection = TextDirection.Ltr,
+                                textAlign = TextAlign.Left
+                            ),
+                            color = MdvColor.OnSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = MdvSpace.S2, vertical = MdvSpace.S2)
+                        )
+                    }
                 }
             }
         }
