@@ -104,6 +104,12 @@ class LocalizationResourceParityTest {
                 "values-fa string '$key' must contain FSI (U+2066) before PDI (U+2069)",
                 fsiIndex >= 0 && pdiIndex > fsiIndex
             )
+            val fsiCount = text.count { it == '\u2066' }
+            val pdiCount = text.count { it == '\u2069' }
+            assertTrue(
+                "values-fa string '$key' must have balanced FSI/PDI",
+                fsiCount == pdiCount && fsiCount > 0
+            )
         }
     }
 }
