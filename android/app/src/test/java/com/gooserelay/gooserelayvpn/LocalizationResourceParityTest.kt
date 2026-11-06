@@ -98,17 +98,17 @@ class LocalizationResourceParityTest {
         val faStrings = parseStringsXml(File(resDir, "values-fa/strings.xml"))
         for (key in bidiIsolatedKeys) {
             val text = faStrings[key]?.text ?: error("Missing values-fa string: $key")
-            val fsiIndex = text.indexOf('\u2066')
-            val pdiIndex = text.indexOf('\u2069')
+            var depth = 0
+            var wellFormed = true
+            for (ch in text) {
+                when (ch) {
+                    '\u2066' -> depth++
+                    '\u2069' -> if (depth == 0) wellFormed = false else depth--
+                }
+            }
             assertTrue(
-                "values-fa string '$key' must contain FSI (U+2066) before PDI (U+2069)",
-                fsiIndex >= 0 && pdiIndex > fsiIndex
-            )
-            val fsiCount = text.count { it == '\u2066' }
-            val pdiCount = text.count { it == '\u2069' }
-            assertTrue(
-                "values-fa string '$key' must have balanced FSI/PDI",
-                fsiCount == pdiCount && fsiCount > 0
+                "values-fa string '$key' must have well-formed FSI/PDI isolates",
+                wellFormed && depth == 0 && text.contains('\u2066')
             )
         }
     }
