@@ -110,6 +110,17 @@
     <string name="profiles_invalid_json_format">فرمت JSON نامعتبر است</string>
     <string name="profiles_import_failed_msg">خطا در وارد کردن: %1$s</string>
     <string name="profiles_export_target_missing">خروجی ناموفق بود: پروفایل دیگر وجود ندارد.</string>
+    <string name="scanner_title">اسکن QR Code</string>
+    <string name="scanner_hint">QR Code را درون کادر تنظیم کنید</string>
+    <string name="scanner_torch_on">روشن کردن فلش</string>
+    <string name="scanner_torch_off">خاموش کردن فلش</string>
+    <string name="scanner_select_image">انتخاب از گالری</string>
+    <string name="scanner_decoding_failed">هیچ QR Code معتبری در تصویر انتخاب‌شده یافت نشد</string>
+    <string name="scanner_camera_permission_required">برای اسکن QR Code به دسترسی دوربین نیاز است</string>
+    <string name="scanner_grant_permission">اعطای دسترسی</string>
+    <string name="profiles_add_qr">اسکن QR Code</string>
+    <string name="profiles_share_qr">نمایش QR Code</string>
+    <string name="profiles_share_qr_cd">QR Code پروفایل</string>
     <string name="logs_share">اشتراک‌گذاری لاگ‌ها</string>
     <string name="logs_auto">خودکار</string>
     <string name="logs_clear">پاک کردن لاگ‌ها</string>

@@ -7,6 +7,8 @@ import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +32,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalTextStyle
@@ -54,6 +58,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -66,12 +71,17 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gooserelay.gooserelayvpn.R
@@ -79,10 +89,13 @@ import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
+import com.gooserelay.gooserelayvpn.ui.theme.MdvRadius
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
+import com.gooserelay.gooserelayvpn.ui.scanner.ScannerActivity
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.GooseRelayProtocol
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
+import com.gooserelay.gooserelayvpn.util.QrCodeUtil
 import kotlinx.coroutines.launch
 
 data class ScriptKeyEntry(
@@ -145,6 +158,7 @@ fun ProfilesScreen(
     var showErrorDialog by rememberSaveable { mutableStateOf<String?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     var exportTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var shareQrProfileId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val clipboardManager = LocalClipboardManager.current
 
@@ -173,6 +187,27 @@ fun ProfilesScreen(
         val fileName = getFileNameFromUri(context, uri)
         viewModel.importProfileFromUri(uri, context.contentResolver, fileName) {
             showErrorDialog = context.getString(R.string.profiles_import_failed_general)
+        }
+    }
+
+    val qrScanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val text = result.data?.getStringExtra(ScannerActivity.EXTRA_SCAN_RESULT)?.trim()
+            if (text.isNullOrBlank()) {
+                showErrorDialog = context.getString(R.string.profiles_import_failed_general)
+            } else {
+                val profile = GooseRelayProtocol.parse(text) ?: ProfileJsonParser.parse(text)
+                if (profile != null) {
+                    viewModel.addProfile(profile)
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            context.getString(R.string.profiles_import_deep_link_success, profile.name)
+                        )
+                    }
+                } else {
+                    showErrorDialog = context.getString(R.string.profiles_import_failed_general)
+                }
+            }
         }
     }
 
@@ -223,6 +258,16 @@ fun ProfilesScreen(
                                     } else {
                                         showErrorDialog = context.getString(R.string.global_clipboard_empty_msg)
                                     }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.profiles_add_qr)) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.QrCodeScanner, contentDescription = stringResource(R.string.profiles_add_qr))
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    qrScanLauncher.launch(Intent(context, ScannerActivity::class.java))
                                 }
                             )
                             DropdownMenuItem(
@@ -339,6 +384,13 @@ fun ProfilesScreen(
                                         }
                                     )
                                     DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.profiles_share_qr)) },
+                                        onClick = {
+                                            shareMenuExpanded = false
+                                            shareQrProfileId = profile.id
+                                        }
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(stringResource(R.string.profiles_share_sheet)) },
                                         onClick = {
                                             shareMenuExpanded = false
@@ -394,6 +446,72 @@ fun ProfilesScreen(
                 editingId = null
             },
             onDismiss = { showEditor = false; editingId = null }
+        )
+    }
+
+    val shareQrProfile = profiles.find { it.id == shareQrProfileId }
+    if (shareQrProfile != null) {
+        val shareUrl = remember {
+            val json = ConfigGenerator.exportProfileJson(shareQrProfile)
+            val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+            "goose-relay://$base64"
+        }
+        val qrBitmap = remember(shareUrl) {
+            runCatching { QrCodeUtil.encodeAsBitmap(shareUrl, sizePx = 800) }.getOrNull()
+        }
+        AlertDialog(
+            onDismissRequest = { shareQrProfileId = null },
+            title = { Text(stringResource(R.string.profiles_share_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)) {
+                    Text(
+                        text = shareQrProfile.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (qrBitmap != null) {
+                        Box(
+                            modifier = Modifier
+                                .size(200.dp)
+                                .clip(RoundedCornerShape(MdvRadius.Lg))
+                                .background(MdvColor.QrBackground)
+                                .padding(MdvSpace.S2),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                bitmap = qrBitmap.asImageBitmap(),
+                                contentDescription = stringResource(R.string.profiles_share_qr_cd),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        OutlinedTextField(
+                            value = shareUrl,
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                            maxLines = 4,
+                            textStyle = LocalTextStyle.current.copy(
+                                textDirection = TextDirection.Ltr,
+                                textAlign = TextAlign.Start
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { shareQrProfileId = null }) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { shareQrProfileId = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
         )
     }
 

@@ -32,6 +32,10 @@ object MdvColor {
     val WarningContainer = Color(0xFF5A4321)
     val Info = Color(0xFF81C784)
     val InfoContainer = Color(0xFF1C3B25)
+    val QrBackground = Color(0xFFFFFFFF)
+    val OverlayScrim = Color(0x99000000)
+    val CameraBackdrop = Color(0xFF000000)
+    val OnCameraBackdrop = Color(0xFFFFFFFF)
 }
 
 object MdvSpace {

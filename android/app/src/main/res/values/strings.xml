@@ -110,6 +110,17 @@
     <string name="profiles_invalid_json_format">Invalid JSON format</string>
     <string name="profiles_import_failed_msg">Import failed: %1$s</string>
     <string name="profiles_export_target_missing">Export failed: profile no longer exists.</string>
+    <string name="scanner_title">Scan QR Code</string>
+    <string name="scanner_hint">Align QR code within the frame</string>
+    <string name="scanner_torch_on">Turn flash on</string>
+    <string name="scanner_torch_off">Turn flash off</string>
+    <string name="scanner_select_image">Choose from gallery</string>
+    <string name="scanner_decoding_failed">No valid QR code found in selected image</string>
+    <string name="scanner_camera_permission_required">Camera permission is required to scan QR codes</string>
+    <string name="scanner_grant_permission">Grant Permission</string>
+    <string name="profiles_add_qr">Scan QR Code</string>
+    <string name="profiles_share_qr">Show QR Code</string>
+    <string name="profiles_share_qr_cd">Profile QR code</string>
     <string name="logs_share">Share Logs</string>
     <string name="logs_auto">Auto</string>
     <string name="logs_clear">Clear Logs</string>

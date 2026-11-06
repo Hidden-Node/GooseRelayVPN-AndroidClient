@@ -280,6 +280,17 @@ dependencies {
     // Gson for JSON serialization
     implementation("com.google.code.gson:gson:2.11.0")
 
+    // ZXing for QR code generation and decoding
+    implementation("com.google.zxing:core:3.5.3")
+
+    // CameraX for in-app real-time QR scanning
+    val cameraxVersion = "1.4.1"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
