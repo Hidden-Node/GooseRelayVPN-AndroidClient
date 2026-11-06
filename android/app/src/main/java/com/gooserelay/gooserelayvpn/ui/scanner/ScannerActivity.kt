@@ -23,6 +23,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -65,11 +66,13 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
@@ -219,6 +222,7 @@ private fun ScannerScreen(
         ) {
             if (hasCameraPermission) {
                 CameraPreviewView(
+                    lifecycleOwner = lifecycleOwner,
                     onScanResult = onScanResult,
                     onCameraReady = { control, info ->
                         cameraControl = control
@@ -237,7 +241,7 @@ private fun ScannerScreen(
                             text = stringResource(R.string.scanner_camera_unavailable),
                             color = MdvColor.OnCameraBackdrop,
                             style = MaterialTheme.typography.bodyMedium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center
                         )
                     }
                 } else {
@@ -249,7 +253,7 @@ private fun ScannerScreen(
                         .fillMaxSize()
                         .padding(MdvSpace.S4),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Text(
                         text = stringResource(R.string.scanner_camera_permission_required),
@@ -349,11 +353,11 @@ private fun ScannerOverlay() {
 
 @Composable
 private fun CameraPreviewView(
+    lifecycleOwner: LifecycleOwner,
     onScanResult: (String) -> Unit,
     onCameraReady: (CameraControl, CameraInfo) -> Unit,
     onBindFailed: () -> Unit
 ) {
-    val lifecycleOwner = LocalLifecycleOwner.current
     val isResultHandled = remember { AtomicBoolean(false) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     var activeCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
