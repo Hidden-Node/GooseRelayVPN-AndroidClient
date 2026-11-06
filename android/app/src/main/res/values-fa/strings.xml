@@ -118,6 +118,8 @@
     <string name="scanner_decoding_failed">هیچ QR Code معتبری در تصویر انتخاب‌شده یافت نشد</string>
     <string name="scanner_camera_permission_required">برای اسکن QR Code به دسترسی دوربین نیاز است</string>
     <string name="scanner_grant_permission">اعطای دسترسی</string>
+    <string name="scanner_camera_unavailable">دوربین برای اسکن زنده در دسترس نیست. همچنان می‌توانید از دکمه گالری استفاده کنید.</string>
+    <string name="scanner_open_settings">باز کردن تنظیمات برنامه</string>
     <string name="profiles_add_qr">اسکن QR Code</string>
     <string name="profiles_share_qr">نمایش QR Code</string>
     <string name="profiles_share_qr_cd">QR Code پروفایل</string>

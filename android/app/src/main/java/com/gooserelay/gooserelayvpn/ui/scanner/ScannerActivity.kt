@@ -4,7 +4,9 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -125,15 +128,23 @@ private fun ScannerScreen(
         hasCameraPermission = granted
     }
 
+    var permissionAttempts by remember { mutableIntStateOf(0) }
+
+    fun requestCameraPermission() {
+        permissionAttempts += 1
+        permissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
+            requestCameraPermission()
         }
     }
 
     var cameraControl by remember { mutableStateOf<CameraControl?>(null) }
     var hasTorch by remember { mutableStateOf(false) }
     var torchEnabled by remember { mutableStateOf(false) }
+    var cameraBindFailed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -199,9 +210,26 @@ private fun ScannerScreen(
                     onCameraReady = { control, info ->
                         cameraControl = control
                         hasTorch = info.hasFlashUnit()
-                    }
+                    },
+                    onBindFailed = { cameraBindFailed = true }
                 )
-                ScannerOverlay()
+                if (cameraBindFailed) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(MdvSpace.S4),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.scanner_camera_unavailable),
+                            color = MdvColor.OnCameraBackdrop,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                } else {
+                    ScannerOverlay()
+                }
             } else {
                 Column(
                     modifier = Modifier
@@ -216,8 +244,22 @@ private fun ScannerScreen(
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Spacer(modifier = Modifier.height(MdvSpace.S3))
-                    Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
-                        Text(stringResource(R.string.scanner_grant_permission))
+                    Button(onClick = {
+                        if (permissionAttempts >= 2) {
+                            context.startActivity(
+                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                    .setData(Uri.parse("package:" + context.packageName))
+                            )
+                        } else {
+                            requestCameraPermission()
+                        }
+                    }) {
+                        Text(
+                            stringResource(
+                                if (permissionAttempts >= 2) R.string.scanner_open_settings
+                                else R.string.scanner_grant_permission
+                            )
+                        )
                     }
                 }
             }
@@ -295,7 +337,8 @@ private fun ScannerOverlay() {
 @Composable
 private fun CameraPreviewView(
     onScanResult: (String) -> Unit,
-    onCameraReady: (CameraControl, CameraInfo) -> Unit
+    onCameraReady: (CameraControl, CameraInfo) -> Unit,
+    onBindFailed: () -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val isResultHandled = remember { AtomicBoolean(false) }
@@ -344,6 +387,7 @@ private fun CameraPreviewView(
                     )
                     onCameraReady(camera.cameraControl, camera.cameraInfo)
                 } catch (_: Exception) {
+                    onBindFailed()
                 }
             }, ContextCompat.getMainExecutor(ctx))
 

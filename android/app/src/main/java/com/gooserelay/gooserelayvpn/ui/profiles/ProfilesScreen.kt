@@ -451,7 +451,7 @@ fun ProfilesScreen(
 
     val shareQrProfile = profiles.find { it.id == shareQrProfileId }
     if (shareQrProfile != null) {
-        val shareUrl = remember {
+        val shareUrl = remember(shareQrProfile) {
             val json = ConfigGenerator.exportProfileJson(shareQrProfile)
             val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
             "goose-relay://$base64"

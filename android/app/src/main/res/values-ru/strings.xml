@@ -118,6 +118,8 @@
     <string name="scanner_decoding_failed">В выбранном изображении не найден QR-код</string>
     <string name="scanner_camera_permission_required">Для сканирования QR-кода требуется разрешение на использование камеры</string>
     <string name="scanner_grant_permission">Предоставить разрешение</string>
+    <string name="scanner_camera_unavailable">Камера недоступна для сканирования в реальном времени. Вы по-прежнему можете использовать кнопку галереи.</string>
+    <string name="scanner_open_settings">Открыть настройки приложения</string>
     <string name="profiles_add_qr">Сканировать QR-код</string>
     <string name="profiles_share_qr">Показать QR-код</string>
     <string name="profiles_share_qr_cd">QR-код профиля</string>

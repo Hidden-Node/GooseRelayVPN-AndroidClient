@@ -118,6 +118,8 @@
     <string name="scanner_decoding_failed">No valid QR code found in selected image</string>
     <string name="scanner_camera_permission_required">Camera permission is required to scan QR codes</string>
     <string name="scanner_grant_permission">Grant Permission</string>
+    <string name="scanner_camera_unavailable">Camera is unavailable for live scanning. You can still use the gallery button.</string>
+    <string name="scanner_open_settings">Open app settings</string>
     <string name="profiles_add_qr">Scan QR Code</string>
     <string name="profiles_share_qr">Show QR Code</string>
     <string name="profiles_share_qr_cd">Profile QR code</string>

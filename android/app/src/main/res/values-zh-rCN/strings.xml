@@ -118,6 +118,8 @@
     <string name="scanner_decoding_failed">所选图片中未找到有效的二维码</string>
     <string name="scanner_camera_permission_required">扫描二维码需要相机权限</string>
     <string name="scanner_grant_permission">授予权限</string>
+    <string name="scanner_camera_unavailable">实时扫描相机不可用。仍可使用相册按钮。</string>
+    <string name="scanner_open_settings">打开应用设置</string>
     <string name="profiles_add_qr">扫描二维码</string>
     <string name="profiles_share_qr">显示二维码</string>
     <string name="profiles_share_qr_cd">配置文件二维码</string>
