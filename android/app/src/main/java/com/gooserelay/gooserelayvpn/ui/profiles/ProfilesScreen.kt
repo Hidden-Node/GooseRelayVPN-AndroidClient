@@ -3,6 +3,7 @@ package com.gooserelay.gooserelayvpn.ui.profiles
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -63,6 +64,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -96,7 +98,9 @@ import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.GooseRelayProtocol
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import com.gooserelay.gooserelayvpn.util.QrCodeUtil
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ScriptKeyEntry(
     val id: String = "",
@@ -456,8 +460,10 @@ fun ProfilesScreen(
             val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
             "goose-relay://$base64"
         }
-        val qrBitmap = remember(shareUrl) {
-            runCatching { QrCodeUtil.encodeAsBitmap(shareUrl, sizePx = 800) }.getOrNull()
+        val qrBitmap by produceState<Bitmap?>(initialValue = null, shareUrl) {
+            value = withContext(Dispatchers.Default) {
+                runCatching { QrCodeUtil.encodeAsBitmap(shareUrl, sizePx = 800) }.getOrNull()
+            }
         }
         AlertDialog(
             onDismissRequest = { shareQrProfileId = null },
@@ -479,7 +485,7 @@ fun ProfilesScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
-                                bitmap = qrBitmap.asImageBitmap(),
+                                bitmap = qrBitmap!!.asImageBitmap(),
                                 contentDescription = stringResource(R.string.profiles_share_qr_cd),
                                 modifier = Modifier.fillMaxSize()
                             )

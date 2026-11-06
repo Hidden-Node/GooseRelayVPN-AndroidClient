@@ -138,16 +138,16 @@ private fun ScannerScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    var permissionAttempts by remember { mutableIntStateOf(0) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasCameraPermission = granted
+        if (!granted) permissionAttempts += 1
     }
 
-    var permissionAttempts by remember { mutableIntStateOf(0) }
-
     fun requestCameraPermission() {
-        permissionAttempts += 1
         permissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
