@@ -46,7 +46,7 @@
     <string name="home_state_disconnected">Отключено</string>
     <string name="home_connection_status_title">СТАТУС ПОДКЛЮЧЕНИЯ</string>
     <string name="home_connection_running">Подключено и работает</string>
-    <string name="home_connection_preparing">Подготовка подключения\n(нажмите еще раз для отмены)</string>
+    <string name="home_connection_preparing">Подготовка подключения…</string>
     <string name="home_connection_cancel_hint">(нажмите еще раз для отмены)</string>
     <string name="home_connection_error_check_logs">Ошибка — проверьте журналы</string>
     <string name="home_profile_title">ПРОФИЛЬ</string>

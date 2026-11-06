@@ -46,7 +46,7 @@
     <string name="home_state_disconnected">Disconnected</string>
     <string name="home_connection_status_title">CONNECTION STATUS</string>
     <string name="home_connection_running">Connected and running</string>
-    <string name="home_connection_preparing">Preparing connection\n(tap again to cancel)</string>
+    <string name="home_connection_preparing">Preparing connection…</string>
     <string name="home_connection_cancel_hint">(tap again to cancel)</string>
     <string name="home_connection_error_check_logs">Error - check logs</string>
     <string name="home_profile_title">PROFILE</string>

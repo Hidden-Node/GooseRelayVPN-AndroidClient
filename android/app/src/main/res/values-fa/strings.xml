@@ -46,7 +46,7 @@
     <string name="home_state_disconnected">عدم اتصال</string>
     <string name="home_connection_status_title">وضعیت اتصال</string>
     <string name="home_connection_running">متصل و در حال اجرا</string>
-    <string name="home_connection_preparing">در حال آماده‌سازی اتصال\n(برای لغو دوباره لمس کنید)</string>
+    <string name="home_connection_preparing">در حال آماده‌سازی اتصال…</string>
     <string name="home_connection_cancel_hint">(برای لغو دوباره لمس کنید)</string>
     <string name="home_connection_error_check_logs">خطا - لاگ‌ها را بررسی کنید</string>
     <string name="home_profile_title">پروفایل</string>
