@@ -52,7 +52,7 @@ object QrCodeUtil {
 
     fun syncDecodeQRCode(bitmap: Bitmap?): String? {
         if (bitmap == null) return null
-        val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
+        val safeBitmap = if (bitmap.config?.name == "HARDWARE") {
             bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: bitmap
         } else {
             bitmap
