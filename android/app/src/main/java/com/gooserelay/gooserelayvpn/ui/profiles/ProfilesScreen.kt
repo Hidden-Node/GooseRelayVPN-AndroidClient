@@ -68,6 +68,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -425,7 +426,10 @@ private fun ProfileEditorDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val contentTextStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Content)
+    val contentTextStyle = LocalTextStyle.current.copy(
+        textDirection = TextDirection.Ltr,
+        textAlign = TextAlign.Left
+    )
     var name by rememberSaveable { mutableStateOf(profile?.name ?: "Default") }
     var debugTiming by rememberSaveable { mutableStateOf(profile?.debugTiming ?: false) }
     var socksHost by rememberSaveable { mutableStateOf(profile?.socksHost ?: "127.0.0.1") }
@@ -500,6 +504,7 @@ private fun ProfileEditorDialog(
                     value = remoteUrl,
                     onValueChange = { remoteUrl = it },
                     label = { Text(stringResource(R.string.profiles_remote_url)) },
+                    textStyle = contentTextStyle,
                     modifier = Modifier.fillMaxWidth(),
                     supportingText = { Text(stringResource(R.string.profiles_remote_url_help)) }
                 )
@@ -619,6 +624,7 @@ private fun ScriptKeysEditor(
                                 onEntriesChanged(newEntries)
                             },
                             label = { Text(stringResource(R.string.profiles_account)) },
+                            textStyle = contentTextStyle,
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )

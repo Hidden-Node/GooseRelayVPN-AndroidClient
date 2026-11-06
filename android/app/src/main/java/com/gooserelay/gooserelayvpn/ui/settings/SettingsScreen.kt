@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -185,7 +186,10 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val contentTextStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Content)
+            val contentTextStyle = LocalTextStyle.current.copy(
+                textDirection = TextDirection.Ltr,
+                textAlign = TextAlign.Left
+            )
 
             Text(stringResource(R.string.settings_debug_timing))
             Switch(checked = debugTiming, onCheckedChange = { debugTiming = it })

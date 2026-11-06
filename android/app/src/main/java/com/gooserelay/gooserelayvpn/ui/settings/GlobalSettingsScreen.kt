@@ -81,6 +81,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -105,7 +106,10 @@ import androidx.compose.runtime.LaunchedEffect
 @Composable
 fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
     val context = LocalContext.current
-    val contentTextStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Content)
+    val contentTextStyle = LocalTextStyle.current.copy(
+        textDirection = TextDirection.Ltr,
+        textAlign = TextAlign.Left
+    )
     val current by vm.settings.collectAsState()
     val installedApps by vm.installedApps.collectAsState()
     var draft by remember(current) { mutableStateOf(current) }
@@ -254,6 +258,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text(stringResource(R.string.global_connection_mode)) },
+                                textStyle = contentTextStyle,
                                 supportingText = { Text(stringResource(R.string.global_connection_mode_help)) },
                                 trailingIcon = {
                                     Icon(
@@ -459,6 +464,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 value = draft.internetSharingUser,
                                 onValueChange = { draft = draft.copy(internetSharingUser = it) },
                                 label = { Text(stringResource(R.string.global_username)) },
+                                textStyle = contentTextStyle,
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                 isError = mismatch && userBlank,
@@ -474,6 +480,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 value = draft.internetSharingPass,
                                 onValueChange = { draft = draft.copy(internetSharingPass = it) },
                                 label = { Text(stringResource(R.string.global_password)) },
+                                textStyle = contentTextStyle,
                                 visualTransformation = PasswordVisualTransformation(),
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),

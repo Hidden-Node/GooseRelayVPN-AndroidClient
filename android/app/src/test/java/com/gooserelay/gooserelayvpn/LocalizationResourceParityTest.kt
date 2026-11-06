@@ -79,4 +79,29 @@ class LocalizationResourceParityTest {
             }
         }
     }
+
+    private val bidiIsolatedKeys = listOf(
+        "profiles_deployment_id",
+        "profiles_script_keys_hint",
+        "profiles_host_localhost",
+        "profiles_host_all_interfaces",
+        "settings_google_host",
+        "settings_tunnel_key",
+        "settings_sni",
+        "home_howto_body",
+        "global_connection_mode_help"
+    )
+
+    @Test
+    fun testPersianTechnicalStringsUseBidiIsolates() {
+        val resDir = resolveResDir()
+        val faStrings = parseStringsXml(File(resDir, "values-fa/strings.xml"))
+        for (key in bidiIsolatedKeys) {
+            val text = faStrings[key]?.text ?: error("Missing values-fa string: $key")
+            assertTrue(
+                "values-fa string '$key' must contain FSI (U+2066) and PDI (U+2069)",
+                text.contains('\u2066') && text.contains('\u2069')
+            )
+        }
+    }
 }
