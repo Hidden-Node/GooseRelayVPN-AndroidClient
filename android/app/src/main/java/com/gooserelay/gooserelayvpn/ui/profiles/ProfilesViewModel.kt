@@ -36,13 +36,13 @@ class ProfilesViewModel @Inject constructor(
     private val subscriptionRepository: SubscriptionRepository
 ) : ViewModel() {
 
-    val profiles: StateFlow<List<ProfileEntity>> =
+    val profiles: StateFlow<List<ProfileEntity>?> =
         profileRepository.getAllProfiles()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val subscriptions: StateFlow<List<SubscriptionEntity>> =
+    val subscriptions: StateFlow<List<SubscriptionEntity>?> =
         subscriptionRepository.getAllSubscriptions()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     data class AddSubscriptionState(
         val visible: Boolean = false,
@@ -57,6 +57,18 @@ class ProfilesViewModel @Inject constructor(
 
     private val _isUpdating = MutableStateFlow(false)
     val isUpdating: StateFlow<Boolean> = _isUpdating.asStateFlow()
+
+    private var activeUpdates = 0
+
+    private fun updateStarted() {
+        activeUpdates++
+        _isUpdating.value = true
+    }
+
+    private fun updateFinished() {
+        activeUpdates = (activeUpdates - 1).coerceAtLeast(0)
+        _isUpdating.value = activeUpdates > 0
+    }
 
     private val _updateMessage = MutableStateFlow<String?>(null)
     val updateMessage: StateFlow<String?> = _updateMessage.asStateFlow()
@@ -136,7 +148,7 @@ class ProfilesViewModel @Inject constructor(
 
     fun refreshSubscription(context: Context, id: Long) {
         if (_isUpdating.value) return
-        _isUpdating.value = true
+        updateStarted()
         viewModelScope.launch {
             try {
                 val applied = refreshOne(id)
@@ -145,22 +157,21 @@ class ProfilesViewModel @Inject constructor(
             } catch (e: Exception) {
                 _updateMessage.value = context.getString(subscriptionErrorRes(e))
             } finally {
-                _isUpdating.value = false
+                updateFinished()
             }
         }
     }
 
     fun refreshAllSubscriptions(context: Context) {
         if (_isUpdating.value) return
-        _isUpdating.value = true
+        updateStarted()
         viewModelScope.launch {
             try {
-                val snapshot = subscriptions.value
+                val snapshot = subscriptions.value.orEmpty()
                 var successes = 0
                 snapshot.forEach { subscription ->
                     try {
-                        refreshOne(subscription.id)
-                        successes++
+                        if (refreshOne(subscription.id) > 0) successes++
                     } catch (_: Exception) {
                         // One failing feed must not abort the whole sync.
                     }
@@ -171,7 +182,7 @@ class ProfilesViewModel @Inject constructor(
                     snapshot.size
                 )
             } finally {
-                _isUpdating.value = false
+                updateFinished()
             }
         }
     }
@@ -199,68 +210,70 @@ class ProfilesViewModel @Inject constructor(
 
     fun updateRemoteProfile(context: Context) {
         viewModelScope.launch {
-            val selectedProfile = profileRepository.getSelectedProfileFlow().first()
-            if (selectedProfile == null) {
-                _updateMessage.value = context.getString(R.string.profiles_no_selection_update)
-                return@launch
-            }
-
-            val targetUrl = selectedProfile.remoteUrl
-            if (targetUrl.isNullOrBlank()) {
-                _updateMessage.value = context.getString(R.string.profiles_no_remote_url)
-                return@launch
-            }
-
-            _isUpdating.value = true
+            updateStarted()
             try {
-                val json = withContext(Dispatchers.IO) {
-                    val url = URL(targetUrl)
-                    val connection = url.openConnection() as HttpURLConnection
-                    connection.requestMethod = "GET"
-                    connection.connectTimeout = 10000
-                    connection.readTimeout = 10000
-                    val code = connection.responseCode
-                    if (code / 100 != 2) {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }?.take(200) ?: ""
-                        } catch (_: Exception) { "" }
-                        throw IOException("HTTP $code: $errorBody")
-                    }
-                    connection.inputStream.bufferedReader().use { it.readText() }
+                val selectedProfile = profileRepository.getSelectedProfileFlow().first()
+                if (selectedProfile == null) {
+                    _updateMessage.value = context.getString(R.string.profiles_no_selection_update)
+                    return@launch
                 }
 
-                val remoteProfile = parseProfileFromJson(json, remoteUrl = selectedProfile.remoteUrl)
-                if (remoteProfile != null) {
-                    val updated = selectedProfile.copy(
-                        name = if (remoteProfile.name.isNotBlank()) remoteProfile.name else selectedProfile.name,
-                        debugTiming = remoteProfile.debugTiming,
-                        socksHost = remoteProfile.socksHost,
-                        socksPort = remoteProfile.socksPort,
-                        socksUser = remoteProfile.socksUser,
-                        socksPass = remoteProfile.socksPass,
-                        googleHost = remoteProfile.googleHost,
-                        sniJson = remoteProfile.sniJson,
-                        scriptKeysText = remoteProfile.scriptKeysText,
-                        tunnelKey = remoteProfile.tunnelKey,
-                        coalesceStepMs = remoteProfile.coalesceStepMs,
-                        idleSlotsPerBucket = remoteProfile.idleSlotsPerBucket
-                    )
-                    profileRepository.updateProfile(updated)
-                    _updateMessage.value = context.getString(R.string.profiles_update_success)
-                } else {
-                    _updateMessage.value = context.getString(R.string.profiles_update_error, context.getString(R.string.profiles_invalid_json_format))
+                val targetUrl = selectedProfile.remoteUrl
+                if (targetUrl.isNullOrBlank()) {
+                    _updateMessage.value = context.getString(R.string.profiles_no_remote_url)
+                    return@launch
                 }
-            } catch (e: Exception) {
-                _updateMessage.value = context.getString(R.string.profiles_update_error, e.localizedMessage ?: context.getString(R.string.common_unknown_error))
+
+                try {
+                    val json = withContext(Dispatchers.IO) {
+                        val url = URL(targetUrl)
+                        val connection = url.openConnection() as HttpURLConnection
+                        connection.requestMethod = "GET"
+                        connection.connectTimeout = 10000
+                        connection.readTimeout = 10000
+                        val code = connection.responseCode
+                        if (code / 100 != 2) {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }?.take(200) ?: ""
+                            } catch (_: Exception) { "" }
+                            throw IOException("HTTP $code: $errorBody")
+                        }
+                        connection.inputStream.bufferedReader().use { it.readText() }
+                    }
+
+                    val remoteProfile = parseProfileFromJson(json, remoteUrl = selectedProfile.remoteUrl)
+                    if (remoteProfile != null) {
+                        val updated = selectedProfile.copy(
+                            name = if (remoteProfile.name.isNotBlank()) remoteProfile.name else selectedProfile.name,
+                            debugTiming = remoteProfile.debugTiming,
+                            socksHost = remoteProfile.socksHost,
+                            socksPort = remoteProfile.socksPort,
+                            socksUser = remoteProfile.socksUser,
+                            socksPass = remoteProfile.socksPass,
+                            googleHost = remoteProfile.googleHost,
+                            sniJson = remoteProfile.sniJson,
+                            scriptKeysText = remoteProfile.scriptKeysText,
+                            tunnelKey = remoteProfile.tunnelKey,
+                            coalesceStepMs = remoteProfile.coalesceStepMs,
+                            idleSlotsPerBucket = remoteProfile.idleSlotsPerBucket
+                        )
+                        profileRepository.updateProfile(updated)
+                        _updateMessage.value = context.getString(R.string.profiles_update_success)
+                    } else {
+                        _updateMessage.value = context.getString(R.string.profiles_update_error, context.getString(R.string.profiles_invalid_json_format))
+                    }
+                } catch (e: Exception) {
+                    _updateMessage.value = context.getString(R.string.profiles_update_error, e.localizedMessage ?: context.getString(R.string.common_unknown_error))
+                }
             } finally {
-                _isUpdating.value = false
+                updateFinished()
             }
         }
     }
 
     fun importProfileFromUrl(url: String, context: Context) {
         viewModelScope.launch {
-            _isUpdating.value = true
+            updateStarted()
             try {
                 val json = withContext(Dispatchers.IO) {
                     val connection = URL(url).openConnection() as HttpURLConnection
@@ -287,7 +300,7 @@ class ProfilesViewModel @Inject constructor(
             } catch (e: Exception) {
                 _updateMessage.value = context.getString(R.string.profiles_import_failed_msg, e.localizedMessage ?: context.getString(R.string.common_unknown_error))
             } finally {
-                _isUpdating.value = false
+                updateFinished()
             }
         }
     }

@@ -57,10 +57,12 @@ class ProfileMigrationsTest {
         assertThat(entities.keys).containsExactly("profiles", "subscriptions")
 
         val profileFields = (0 until entities.getValue("profiles")
-            .getJSONArray("fields").length()).map { i ->
-            entities.getValue("profiles").getJSONArray("fields").getJSONObject(i).getString("fieldPath")
+            .getJSONArray("fields").length()).associate { i ->
+            val field = entities.getValue("profiles").getJSONArray("fields").getJSONObject(i)
+            field.getString("fieldPath") to field
         }
-        assertThat(profileFields).contains("subscriptionId")
+        assertThat(profileFields.keys).contains("subscriptionId")
+        assertThat(profileFields.getValue("subscriptionId").getBoolean("notNull")).isFalse()
 
         val subscriptionFields = (0 until entities.getValue("subscriptions")
             .getJSONArray("fields").length()).map { i ->

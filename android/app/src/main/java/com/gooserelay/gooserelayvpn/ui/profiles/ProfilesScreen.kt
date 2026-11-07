@@ -153,7 +153,8 @@ fun ProfilesScreen(
     onBack: () -> Unit
 ) {
     val viewModel: ProfilesViewModel = hiltViewModel()
-    val profiles by viewModel.profiles.collectAsState()
+    val profilesOrNull by viewModel.profiles.collectAsState()
+    val profiles = profilesOrNull.orEmpty()
     val isUpdating by viewModel.isUpdating.collectAsState()
     val updateMessage by viewModel.updateMessage.collectAsState()
     val context = LocalContext.current
@@ -168,7 +169,8 @@ fun ProfilesScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var exportTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
     var shareQrProfileId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val subscriptions by viewModel.subscriptions.collectAsState()
+    val subscriptionsOrNull by viewModel.subscriptions.collectAsState()
+    val subscriptions = subscriptionsOrNull.orEmpty()
     val addSubscriptionState by viewModel.addSubscription.collectAsState()
     var selectedSubscriptionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showManageSubscriptions by rememberSaveable { mutableStateOf(false) }
@@ -177,10 +179,13 @@ fun ProfilesScreen(
         selectedSubscriptionId?.let { id -> profiles.filter { it.subscriptionId == id } }
             ?: profiles
     }
-    LaunchedEffect(subscriptions, selectedSubscriptionId) {
-        if (selectedSubscriptionId != null &&
-            subscriptions.none { it.id == selectedSubscriptionId }
-        ) {
+    LaunchedEffect(profilesOrNull, selectedSubscriptionId) {
+        val loaded = profilesOrNull ?: return@LaunchedEffect
+        if (loaded.isEmpty()) selectedSubscriptionId = null
+    }
+    LaunchedEffect(subscriptionsOrNull, selectedSubscriptionId) {
+        val loaded = subscriptionsOrNull ?: return@LaunchedEffect
+        if (selectedSubscriptionId != null && loaded.none { it.id == selectedSubscriptionId }) {
             selectedSubscriptionId = null
         }
     }
@@ -614,6 +619,7 @@ fun ProfilesScreen(
             profileCounts = subscriptions.associate { sub ->
                 sub.id to profiles.count { it.subscriptionId == sub.id }
             },
+            isUpdating = isUpdating,
             onRefresh = { viewModel.refreshSubscription(context, it) },
             onDelete = {
                 showManageSubscriptions = false
@@ -988,6 +994,7 @@ private fun AddSubscriptionDialog(
 private fun ManageSubscriptionsDialog(
     subscriptions: List<SubscriptionEntity>,
     profileCounts: Map<Long, Int>,
+    isUpdating: Boolean,
     onRefresh: (Long) -> Unit,
     onDelete: (Long) -> Unit,
     onDismiss: () -> Unit
@@ -1019,13 +1026,19 @@ private fun ManageSubscriptionsDialog(
                                         color = MdvColor.OnSurfaceVariant
                                     )
                                 }
-                                IconButton(onClick = { onRefresh(subscription.id) }) {
+                                IconButton(
+                                    onClick = { onRefresh(subscription.id) },
+                                    enabled = !isUpdating
+                                ) {
                                     Icon(
                                         Icons.Filled.Refresh,
                                         contentDescription = stringResource(R.string.subscriptions_refresh)
                                     )
                                 }
-                                IconButton(onClick = { onDelete(subscription.id) }) {
+                                IconButton(
+                                    onClick = { onDelete(subscription.id) },
+                                    enabled = !isUpdating
+                                ) {
                                     Icon(
                                         Icons.Filled.Delete,
                                         contentDescription = stringResource(R.string.subscriptions_delete)
