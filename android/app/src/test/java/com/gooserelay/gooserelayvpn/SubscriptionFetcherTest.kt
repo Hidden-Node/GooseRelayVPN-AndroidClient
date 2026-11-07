@@ -95,6 +95,22 @@ class SubscriptionFetcherTest {
     }
 
     @Test
+    fun `raw json first line followed by share lines parses both`() {
+        val feed = profileJson + "\n" + shareLine("""{"name":"node-b"}""")
+        val result = SubscriptionFetcher.parseFeed(feed, decode)
+        assertThat(result.profiles).hasSize(2)
+        assertThat(result.profiles.map { it.name }).containsExactly("node-a", "node-b").inOrder()
+        assertThat(result.skippedLines).isEqualTo(0)
+    }
+
+    @Test
+    fun `malformed json body yields no profiles`() {
+        val result = SubscriptionFetcher.parseFeed("""{"name":"x", """, decode)
+        assertThat(result.profiles).isEmpty()
+        assertThat(result.skippedLines).isEqualTo(1)
+    }
+
+    @Test
     fun `body with only comments yields no profiles`() {
         val result = SubscriptionFetcher.parseFeed("# one\n// two\n\n", decode)
         assertThat(result.profiles).isEmpty()

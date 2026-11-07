@@ -15,6 +15,7 @@ import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
 import com.gooserelay.gooserelayvpn.util.SubscriptionError
 import com.gooserelay.gooserelayvpn.util.SubscriptionFetchException
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -130,14 +131,18 @@ class ProfilesViewModel @Inject constructor(
         _addSubscription.update { it.copy(submitting = true, errorRes = null) }
         viewModelScope.launch {
             try {
-                subscriptionRepository.add(
+                val result = subscriptionRepository.add(
                     name = state.name.trim().ifBlank {
                         context.getString(R.string.subscriptions_default_name)
                     },
                     url = trimmedUrl
                 )
                 _addSubscription.update { it.copy(visible = false) }
-                _updateMessage.value = context.getString(R.string.subscriptions_added)
+                _updateMessage.value = if (result.created) {
+                    context.getString(R.string.subscriptions_added)
+                } else {
+                    context.getString(R.string.subscriptions_updated, result.profilesApplied)
+                }
             } catch (e: Exception) {
                 _addSubscription.update { it.copy(errorRes = subscriptionErrorRes(e)) }
             } finally {
@@ -172,6 +177,8 @@ class ProfilesViewModel @Inject constructor(
                 snapshot.forEach { subscription ->
                     try {
                         if (refreshOne(subscription.id) > 0) successes++
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (_: Exception) {
                         // One failing feed must not abort the whole sync.
                     }

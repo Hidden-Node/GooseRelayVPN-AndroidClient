@@ -22,12 +22,16 @@ class SubscriptionRepository @Inject constructor(
     fun getAllSubscriptions(): Flow<List<SubscriptionEntity>> =
         subscriptionDao.getAllSubscriptions()
 
-    /** Adds a new subscription, or refreshes it when the URL already exists. */
-    suspend fun add(name: String, url: String): Long {
+    data class AddResult(val created: Boolean, val profilesApplied: Int)
+
+    /**
+     * Adds a new subscription, or refreshes it when the URL already exists.
+     * Returns whether a row was created and how many profiles were applied.
+     */
+    suspend fun add(name: String, url: String): AddResult {
         val existing = subscriptionDao.getSubscriptionByUrl(url)
         if (existing != null) {
-            refresh(existing.id)
-            return existing.id
+            return AddResult(created = false, profilesApplied = refresh(existing.id))
         }
         // Fetch before inserting so a failed first download leaves no empty row.
         val result = withContext(Dispatchers.IO) { SubscriptionFetcher.fetch(url) }
@@ -39,7 +43,7 @@ class SubscriptionRepository @Inject constructor(
             )
         )
         profileDao.replaceProfilesForSubscription(id, result.profiles)
-        return id
+        return AddResult(created = true, profilesApplied = result.profiles.size)
     }
 
     /** Returns the number of profiles applied; 0 when the subscription is gone. */

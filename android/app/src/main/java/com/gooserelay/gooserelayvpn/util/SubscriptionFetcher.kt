@@ -20,7 +20,9 @@ class SubscriptionFetchException(
 /**
  * Downloads and parses a subscription feed: one profile per line as
  * `goose-relay://<base64>`, bare Base64 JSON, or raw JSON; `#` and `//`
- * lines are comments. A body that starts with `{` is one raw-JSON profile.
+ * lines are comments. A body that parses as one raw-JSON object is a
+ * single profile; otherwise every non-comment line is parsed as raw JSON,
+ * a share link, or bare Base64.
  *
  * The subscription URL routinely embeds per-user tokens, so never log it.
  */
@@ -149,11 +151,9 @@ object SubscriptionFetcher {
         if (normalized.isEmpty()) return FetchResult(emptyList(), 0)
         if (normalized.startsWith("{")) {
             val profile = ProfileJsonParser.parse(normalized)
-            return if (profile != null) {
-                FetchResult(listOf(profile), 0)
-            } else {
-                FetchResult(emptyList(), 1)
-            }
+            if (profile != null) return FetchResult(listOf(profile), 0)
+            // Not a single JSON document: fall through so a feed whose first line is
+            // raw JSON and whose later lines are share links still parses line by line.
         }
 
         val profiles = mutableListOf<ProfileEntity>()

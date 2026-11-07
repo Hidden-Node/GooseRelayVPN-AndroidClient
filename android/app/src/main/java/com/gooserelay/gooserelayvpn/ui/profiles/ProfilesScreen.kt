@@ -409,6 +409,7 @@ fun ProfilesScreen(
                         items(displayedProfiles, key = { it.id }) { profile ->
                             Card(
                                 onClick = { viewModel.selectProfile(profile.id) },
+                                enabled = !isUpdating,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
                                     containerColor = if (profile.isSelected)
@@ -436,13 +437,19 @@ fun ProfilesScreen(
                                         Text("${profile.socksHost}:${profile.socksPort}")
                                     }
 
-                                    IconButton(onClick = { editingId = profile.id; showEditor = true }) {
+                                    IconButton(
+                                        onClick = { editingId = profile.id; showEditor = true },
+                                        enabled = !isUpdating
+                                    ) {
                                         Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.action_edit))
                                     }
 
                                     var shareMenuExpanded by remember { mutableStateOf(false) }
                                     Box {
-                                        IconButton(onClick = { shareMenuExpanded = true }) {
+                                        IconButton(
+                                            onClick = { shareMenuExpanded = true },
+                                            enabled = !isUpdating
+                                        ) {
                                             Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.action_share))
                                         }
                                         DropdownMenu(
@@ -497,7 +504,10 @@ fun ProfilesScreen(
                                         }
                                     }
 
-                                    IconButton(onClick = { pendingDeleteId = profile.id }) {
+                                    IconButton(
+                                        onClick = { pendingDeleteId = profile.id },
+                                        enabled = !isUpdating
+                                    ) {
                                         Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.profiles_delete))
                                     }
                                 }
