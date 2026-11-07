@@ -129,6 +129,7 @@ class ProfilesViewModel @Inject constructor(
         }
         if (state.submitting) return
         _addSubscription.update { it.copy(submitting = true, errorRes = null) }
+        updateStarted()
         viewModelScope.launch {
             try {
                 val result = subscriptionRepository.add(
@@ -144,9 +145,16 @@ class ProfilesViewModel @Inject constructor(
                     context.getString(R.string.subscriptions_updated, result.profilesApplied)
                 }
             } catch (e: Exception) {
-                _addSubscription.update { it.copy(errorRes = subscriptionErrorRes(e)) }
+                val messageRes = subscriptionErrorRes(e)
+                if (_addSubscription.value.visible) {
+                    _addSubscription.update { it.copy(errorRes = messageRes) }
+                } else {
+                    // Dismissing keeps the request running; report the failure anyway.
+                    _updateMessage.value = context.getString(messageRes)
+                }
             } finally {
                 _addSubscription.update { it.copy(submitting = false) }
+                updateFinished()
             }
         }
     }
