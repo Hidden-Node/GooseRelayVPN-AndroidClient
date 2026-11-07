@@ -22,7 +22,9 @@ class SubscriptionFetchException(
  * `goose-relay://<base64>`, bare Base64 JSON, or raw JSON; `#` and `//`
  * lines are comments. A body that parses as one raw-JSON object is a
  * single profile; otherwise every non-comment line is parsed as raw JSON,
- * a share link, or bare Base64.
+ * a share link, or bare Base64. A multi-line pretty-printed JSON object is
+ * only recognized when the whole body is that object; in a mixed feed each
+ * raw-JSON profile must be on one line.
  *
  * The subscription URL routinely embeds per-user tokens, so never log it.
  */

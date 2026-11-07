@@ -214,6 +214,7 @@ fun ProfilesScreen(
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
+        selectedSubscriptionId = null
         val fileName = getFileNameFromUri(context, uri)
         viewModel.importProfileFromUri(uri, context.contentResolver, fileName) {
             showErrorDialog = context.getString(R.string.profiles_import_failed_general)
@@ -228,6 +229,7 @@ fun ProfilesScreen(
             } else {
                 val profile = GooseRelayProtocol.parse(text) ?: ProfileJsonParser.parse(text)
                 if (profile != null) {
+                    selectedSubscriptionId = null
                     viewModel.addProfile(profile)
                     scope.launch {
                         snackbarHostState.showSnackbar(
@@ -282,11 +284,13 @@ fun ProfilesScreen(
                                     if (!text.isNullOrBlank()) {
                                         when {
                                             text.startsWith("http://") || text.startsWith("https://") -> {
+                                                selectedSubscriptionId = null
                                                 viewModel.importProfileFromUrl(text, context)
                                             }
                                             else -> {
                                                 val profile = GooseRelayProtocol.parse(text) ?: ProfileJsonParser.parse(text)
                                                 if (profile != null) {
+                                                    selectedSubscriptionId = null
                                                     viewModel.addProfile(profile)
                                                 } else {
                                                     showErrorDialog = context.getString(R.string.profiles_import_failed_general)
@@ -407,15 +411,20 @@ fun ProfilesScreen(
                         verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
                     ) {
                         items(displayedProfiles, key = { it.id }) { profile ->
+                            val cardContainer = if (profile.isSelected) {
+                                MdvColor.PrimaryContainer.copy(alpha = 0.16f)
+                            } else {
+                                MdvColor.SurfaceHigh
+                            }
                             Card(
                                 onClick = { viewModel.selectProfile(profile.id) },
                                 enabled = !isUpdating,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (profile.isSelected)
-                                        MdvColor.PrimaryContainer.copy(alpha = 0.16f)
-                                    else
-                                        MdvColor.SurfaceHigh
+                                    containerColor = cardContainer,
+                                    contentColor = MdvColor.OnSurface,
+                                    disabledContainerColor = cardContainer,
+                                    disabledContentColor = MdvColor.OnSurface
                                 )
                             ) {
                                 Row(
@@ -537,7 +546,12 @@ fun ProfilesScreen(
         ProfileEditorDialog(
             profile = editing,
             onSave = {
-                if (editing == null) viewModel.addProfile(it) else viewModel.updateProfile(it)
+                if (editing == null) {
+                    viewModel.addProfile(it)
+                    selectedSubscriptionId = null
+                } else {
+                    viewModel.updateProfile(it)
+                }
                 showEditor = false
                 editingId = null
             },
