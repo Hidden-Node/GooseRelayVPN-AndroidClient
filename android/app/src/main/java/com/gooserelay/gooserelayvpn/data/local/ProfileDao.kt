@@ -77,4 +77,74 @@ interface ProfileDao {
             }
         }
     }
+
+    @Query("SELECT COUNT(*) FROM subscriptions WHERE id = :subId")
+    suspend fun countSubscriptions(subId: Long): Int
+
+    @Query("DELETE FROM profiles WHERE subscriptionId = :subId")
+    suspend fun deleteProfilesBySubscription(subId: Long)
+
+    /**
+     * Replaces one subscription's profiles atomically. Returns false without
+     * touching anything when the subscription row no longer exists (the user
+     * deleted it while the download was in flight).
+     */
+    @Transaction
+    suspend fun replaceProfilesForSubscription(
+        subId: Long,
+        newProfiles: List<ProfileEntity>
+    ): Boolean {
+        if (countSubscriptions(subId) == 0) return false
+        val previouslySelected = getSelectedProfile()
+        val activeBelongsToSub = previouslySelected?.subscriptionId == subId
+
+        deleteProfilesBySubscription(subId)
+        // Descending timestamps keep feed order stable under ORDER BY
+        // createdAt DESC; profiles parsed in the same millisecond would tie.
+        val baseCreatedAt = System.currentTimeMillis()
+        val insertedIds = newProfiles.mapIndexed { index, profile ->
+            insertProfile(
+                profile.copy(
+                    id = 0,
+                    subscriptionId = subId,
+                    isSelected = false,
+                    createdAt = baseCreatedAt - index
+                )
+            )
+        }
+
+        if (activeBelongsToSub) {
+            // Match by name only: socksHost is the local SOCKS listener and
+            // defaults to 127.0.0.1 for every profile, so matching on it selects
+            // the first feed entry instead of the active node.
+            val matchIndex = newProfiles.indexOfFirst {
+                it.name == previouslySelected?.name
+            }
+            val targetId = insertedIds.getOrNull(matchIndex)
+                ?: insertedIds.firstOrNull()
+                ?: getNewestProfile()?.id
+            if (targetId != null) setSelectedProfile(targetId)
+        } else if (getSelectedProfile() == null) {
+            getNewestProfile()?.id?.let { setSelectedProfile(it) }
+        }
+        return true
+    }
+
+    @Query("DELETE FROM subscriptions WHERE id = :subId")
+    suspend fun deleteSubscriptionRow(subId: Long)
+
+    /**
+     * Deletes a subscription and all of its profiles in one transaction, so a
+     * concurrent refresh can never re-insert profiles for a deleted
+     * subscription. Keeps the selection invariant.
+     */
+    @Transaction
+    suspend fun deleteSubscriptionCascade(subId: Long) {
+        val selectedBelongs = getSelectedProfile()?.subscriptionId == subId
+        deleteProfilesBySubscription(subId)
+        deleteSubscriptionRow(subId)
+        if (selectedBelongs) {
+            getNewestProfile()?.id?.let { setSelectedProfile(it) }
+        }
+    }
 }

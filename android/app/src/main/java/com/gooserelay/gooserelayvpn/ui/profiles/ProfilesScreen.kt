@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.SnackbarHost
@@ -88,7 +90,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
+import com.gooserelay.gooserelayvpn.data.local.SubscriptionEntity
+import com.gooserelay.gooserelayvpn.ui.components.mdv.cards.MdvCardLow
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
+import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvFilterChip
 import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
 import com.gooserelay.gooserelayvpn.ui.theme.MdvRadius
@@ -163,6 +168,22 @@ fun ProfilesScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var exportTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
     var shareQrProfileId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val subscriptions by viewModel.subscriptions.collectAsState()
+    val addSubscriptionState by viewModel.addSubscription.collectAsState()
+    var selectedSubscriptionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var showManageSubscriptions by rememberSaveable { mutableStateOf(false) }
+    var pendingSubscriptionDelete by rememberSaveable { mutableStateOf<Long?>(null) }
+    val displayedProfiles = remember(profiles, selectedSubscriptionId) {
+        selectedSubscriptionId?.let { id -> profiles.filter { it.subscriptionId == id } }
+            ?: profiles
+    }
+    LaunchedEffect(subscriptions, selectedSubscriptionId) {
+        if (selectedSubscriptionId != null &&
+            subscriptions.none { it.id == selectedSubscriptionId }
+        ) {
+            selectedSubscriptionId = null
+        }
+    }
 
     val clipboardManager = LocalClipboardManager.current
 
@@ -228,6 +249,14 @@ fun ProfilesScreen(
                             color = MdvColor.Primary
                         )
                     } else {
+                        if (subscriptions.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.refreshAllSubscriptions(context) }) {
+                                Icon(
+                                    Icons.Filled.Sync,
+                                    contentDescription = stringResource(R.string.subscriptions_sync_all)
+                                )
+                            }
+                        }
                         IconButton(onClick = { viewModel.updateRemoteProfile(context) }) {
                             Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.profiles_update_remote))
                         }
@@ -282,6 +311,20 @@ fun ProfilesScreen(
                                 }
                             )
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.subscriptions_add)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    viewModel.openAddSubscriptionDialog()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.subscriptions_manage)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    showManageSubscriptions = true
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.profiles_add_manual)) },
                                 onClick = {
                                     menuExpanded = false
@@ -319,106 +362,140 @@ fun ProfilesScreen(
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(profiles, key = { it.id }) { profile ->
-                    Card(
-                        onClick = { viewModel.selectProfile(profile.id) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (profile.isSelected)
-                                MdvColor.PrimaryContainer.copy(alpha = 0.16f)
-                            else
-                                MdvColor.SurfaceHigh
-                        )
+            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                if (subscriptions.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = MdvSpace.S3, vertical = MdvSpace.S2),
+                        horizontalArrangement = Arrangement.spacedBy(MdvSpace.S2)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (profile.isSelected) {
-                                Icon(
-                                    Icons.Filled.CheckCircle,
-                                    contentDescription = stringResource(R.string.profiles_selected),
-                                    tint = ConnectedGreen,
-                                    modifier = Modifier.size(24.dp)
+                        MdvFilterChip(
+                            selected = selectedSubscriptionId == null,
+                            label = stringResource(R.string.subscriptions_all_filter),
+                            onClick = { selectedSubscriptionId = null }
+                        )
+                        subscriptions.forEach { subscription ->
+                            val count = profiles.count { it.subscriptionId == subscription.id }
+                            MdvFilterChip(
+                                selected = selectedSubscriptionId == subscription.id,
+                                label = "${subscription.name} ($count)",
+                                onClick = { selectedSubscriptionId = subscription.id }
+                            )
+                        }
+                    }
+                }
+                if (displayedProfiles.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            stringResource(R.string.subscriptions_empty_filtered),
+                            color = MdvColor.OnSurfaceVariant
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = MdvSpace.S3),
+                        verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
+                    ) {
+                        items(displayedProfiles, key = { it.id }) { profile ->
+                            Card(
+                                onClick = { viewModel.selectProfile(profile.id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (profile.isSelected)
+                                        MdvColor.PrimaryContainer.copy(alpha = 0.16f)
+                                    else
+                                        MdvColor.SurfaceHigh
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(profile.name)
-                                Text("${profile.socksHost}:${profile.socksPort}")
-                            }
-
-                            IconButton(onClick = { editingId = profile.id; showEditor = true }) {
-                                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.action_edit))
-                            }
-
-                            var shareMenuExpanded by remember { mutableStateOf(false) }
-                            Box {
-                                IconButton(onClick = { shareMenuExpanded = true }) {
-                                    Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.action_share))
-                                }
-                                DropdownMenu(
-                                    expanded = shareMenuExpanded,
-                                    onDismissRequest = { shareMenuExpanded = false }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.profiles_to_clipboard)) },
-                                        onClick = {
-                                            shareMenuExpanded = false
-                                            val json = ConfigGenerator.exportProfileJson(profile)
-                                            val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-                                            val protocol = "goose-relay://$base64"
-                                            clipboardManager.setText(AnnotatedString(protocol))
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.profiles_to_json)) },
-                                        onClick = {
-                                            shareMenuExpanded = false
-                                            exportTargetId = profile.id
-                                            exportLauncher.launch("goose_profile_${profile.name}.json")
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.profiles_share_qr)) },
-                                        onClick = {
-                                            shareMenuExpanded = false
-                                            shareQrProfileId = profile.id
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.profiles_share_sheet)) },
-                                        onClick = {
-                                            shareMenuExpanded = false
-                                            val json = ConfigGenerator.exportProfileJson(profile)
-                                            val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-                                            val url = "goose-relay://$base64"
-                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                                type = "text/plain"
-                                                putExtra(Intent.EXTRA_SUBJECT, profile.name)
-                                                putExtra(Intent.EXTRA_TEXT, url)
-                                            }
-                                            val chooser = Intent.createChooser(sendIntent, context.getString(R.string.profiles_share_title))
-                                            try {
-                                                context.startActivity(chooser)
-                                            } catch (_: ActivityNotFoundException) {
-                                                showErrorDialog = context.getString(R.string.profiles_import_failed_general)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
+                                    if (profile.isSelected) {
+                                        Icon(
+                                            Icons.Filled.CheckCircle,
+                                            contentDescription = stringResource(R.string.profiles_selected),
+                                            tint = ConnectedGreen,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
 
-                            IconButton(onClick = { pendingDeleteId = profile.id }) {
-                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.profiles_delete))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(profile.name)
+                                        Text("${profile.socksHost}:${profile.socksPort}")
+                                    }
+
+                                    IconButton(onClick = { editingId = profile.id; showEditor = true }) {
+                                        Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.action_edit))
+                                    }
+
+                                    var shareMenuExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        IconButton(onClick = { shareMenuExpanded = true }) {
+                                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.action_share))
+                                        }
+                                        DropdownMenu(
+                                            expanded = shareMenuExpanded,
+                                            onDismissRequest = { shareMenuExpanded = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.profiles_to_clipboard)) },
+                                                onClick = {
+                                                    shareMenuExpanded = false
+                                                    val json = ConfigGenerator.exportProfileJson(profile)
+                                                    val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                                                    val protocol = "goose-relay://$base64"
+                                                    clipboardManager.setText(AnnotatedString(protocol))
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.profiles_to_json)) },
+                                                onClick = {
+                                                    shareMenuExpanded = false
+                                                    exportTargetId = profile.id
+                                                    exportLauncher.launch("goose_profile_${profile.name}.json")
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.profiles_share_qr)) },
+                                                onClick = {
+                                                    shareMenuExpanded = false
+                                                    shareQrProfileId = profile.id
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.profiles_share_sheet)) },
+                                                onClick = {
+                                                    shareMenuExpanded = false
+                                                    val json = ConfigGenerator.exportProfileJson(profile)
+                                                    val base64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                                                    val url = "goose-relay://$base64"
+                                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        type = "text/plain"
+                                                        putExtra(Intent.EXTRA_SUBJECT, profile.name)
+                                                        putExtra(Intent.EXTRA_TEXT, url)
+                                                    }
+                                                    val chooser = Intent.createChooser(sendIntent, context.getString(R.string.profiles_share_title))
+                                                    try {
+                                                        context.startActivity(chooser)
+                                                    } catch (_: ActivityNotFoundException) {
+                                                        showErrorDialog = context.getString(R.string.profiles_import_failed_general)
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(onClick = { pendingDeleteId = profile.id }) {
+                                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.profiles_delete))
+                                    }
+                                }
                             }
                         }
                     }
@@ -515,6 +592,58 @@ fun ProfilesScreen(
             },
             dismissButton = {
                 TextButton(onClick = { shareQrProfileId = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
+
+    if (addSubscriptionState.visible) {
+        AddSubscriptionDialog(
+            state = addSubscriptionState,
+            onNameChange = viewModel::onSubscriptionNameChange,
+            onUrlChange = viewModel::onSubscriptionUrlChange,
+            onSubmit = { viewModel.submitSubscription(context) },
+            onDismiss = viewModel::dismissAddSubscriptionDialog
+        )
+    }
+
+    if (showManageSubscriptions) {
+        ManageSubscriptionsDialog(
+            subscriptions = subscriptions,
+            profileCounts = subscriptions.associate { sub ->
+                sub.id to profiles.count { it.subscriptionId == sub.id }
+            },
+            onRefresh = { viewModel.refreshSubscription(context, it) },
+            onDelete = {
+                showManageSubscriptions = false
+                pendingSubscriptionDelete = it
+            },
+            onDismiss = { showManageSubscriptions = false }
+        )
+    }
+
+    pendingSubscriptionDelete?.let { id ->
+        val subscription = subscriptions.find { it.id == id }
+        AlertDialog(
+            onDismissRequest = { pendingSubscriptionDelete = null },
+            title = { Text(stringResource(R.string.subscriptions_delete_confirm_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.subscriptions_delete_confirm_message,
+                        subscription?.name ?: stringResource(R.string.subscriptions_default_name)
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteSubscription(id)
+                    pendingSubscriptionDelete = null
+                }) { Text(stringResource(R.string.subscriptions_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingSubscriptionDelete = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             }
@@ -621,6 +750,7 @@ private fun ProfileEditorDialog(
                         coalesceStepMs = coalesceStepMs.toIntOrNull() ?: 0,
                         idleSlotsPerBucket = idleSlotsPerBucket.toIntOrNull()?.coerceIn(1, 3) ?: 2,
                         remoteUrl = remoteUrl.ifBlank { null },
+                        subscriptionId = profile?.subscriptionId,
                         isSelected = profile?.isSelected ?: false,
                         createdAt = profile?.createdAt ?: System.currentTimeMillis()
                     )
@@ -797,4 +927,120 @@ private fun ScriptKeysEditor(
             Text(stringResource(R.string.profiles_add_script_key))
         }
     }
+}
+
+@Composable
+private fun AddSubscriptionDialog(
+    state: ProfilesViewModel.AddSubscriptionState,
+    onNameChange: (String) -> Unit,
+    onUrlChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.subscriptions_add)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)) {
+                OutlinedTextField(
+                    value = state.name,
+                    onValueChange = onNameChange,
+                    label = { Text(stringResource(R.string.subscriptions_name_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = state.url,
+                    onValueChange = onUrlChange,
+                    label = { Text(stringResource(R.string.subscriptions_url_hint)) },
+                    textStyle = LocalTextStyle.current.copy(
+                        textDirection = TextDirection.Ltr,
+                        textAlign = TextAlign.Left
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                state.errorRes?.let { Text(stringResource(it), color = MdvColor.Error) }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onSubmit, enabled = !state.submitting) {
+                if (state.submitting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(MdvSpace.S4),
+                        strokeWidth = 2.dp,
+                        color = MdvColor.OnPrimary
+                    )
+                } else {
+                    Text(stringResource(R.string.subscriptions_add))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun ManageSubscriptionsDialog(
+    subscriptions: List<SubscriptionEntity>,
+    profileCounts: Map<Long, Int>,
+    onRefresh: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.subscriptions_manage)) },
+        text = {
+            if (subscriptions.isEmpty()) {
+                Text(stringResource(R.string.subscriptions_empty))
+            } else {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
+                ) {
+                    subscriptions.forEach { subscription ->
+                        MdvCardLow(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(MdvSpace.S2),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(subscription.name)
+                                    Text(
+                                        stringResource(
+                                            R.string.subscriptions_profile_count,
+                                            profileCounts[subscription.id] ?: 0
+                                        ),
+                                        color = MdvColor.OnSurfaceVariant
+                                    )
+                                }
+                                IconButton(onClick = { onRefresh(subscription.id) }) {
+                                    Icon(
+                                        Icons.Filled.Refresh,
+                                        contentDescription = stringResource(R.string.subscriptions_refresh)
+                                    )
+                                }
+                                IconButton(onClick = { onDelete(subscription.id) }) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = stringResource(R.string.subscriptions_delete)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_ok))
+            }
+        }
+    )
 }

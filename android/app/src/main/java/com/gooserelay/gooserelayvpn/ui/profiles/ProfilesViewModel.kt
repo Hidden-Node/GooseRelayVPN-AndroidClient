@@ -7,9 +7,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
+import com.gooserelay.gooserelayvpn.data.local.SubscriptionEntity
 import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
+import com.gooserelay.gooserelayvpn.data.repository.SubscriptionRepository
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
 import com.gooserelay.gooserelayvpn.util.ProfileJsonParser
+import com.gooserelay.gooserelayvpn.util.SubscriptionError
+import com.gooserelay.gooserelayvpn.util.SubscriptionFetchException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -27,12 +32,28 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProfilesViewModel @Inject constructor(
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val subscriptionRepository: SubscriptionRepository
 ) : ViewModel() {
 
     val profiles: StateFlow<List<ProfileEntity>> =
         profileRepository.getAllProfiles()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val subscriptions: StateFlow<List<SubscriptionEntity>> =
+        subscriptionRepository.getAllSubscriptions()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    data class AddSubscriptionState(
+        val visible: Boolean = false,
+        val name: String = "",
+        val url: String = "",
+        val errorRes: Int? = null,
+        val submitting: Boolean = false
+    )
+
+    private val _addSubscription = MutableStateFlow(AddSubscriptionState())
+    val addSubscription: StateFlow<AddSubscriptionState> = _addSubscription.asStateFlow()
 
     private val _isUpdating = MutableStateFlow(false)
     val isUpdating: StateFlow<Boolean> = _isUpdating.asStateFlow()
@@ -62,6 +83,118 @@ class ProfilesViewModel @Inject constructor(
         viewModelScope.launch {
             profileRepository.setSelectedProfile(id)
         }
+    }
+
+    fun openAddSubscriptionDialog() {
+        _addSubscription.update {
+            it.copy(visible = true, name = "", url = "", errorRes = null)
+        }
+    }
+
+    fun dismissAddSubscriptionDialog() {
+        _addSubscription.update { it.copy(visible = false) }
+    }
+
+    fun onSubscriptionNameChange(value: String) {
+        _addSubscription.update { it.copy(name = value, errorRes = null) }
+    }
+
+    fun onSubscriptionUrlChange(value: String) {
+        _addSubscription.update { it.copy(url = value, errorRes = null) }
+    }
+
+    fun submitSubscription(context: Context) {
+        val state = _addSubscription.value
+        val trimmedUrl = state.url.trim()
+        if (!trimmedUrl.startsWith("http://", ignoreCase = true) &&
+            !trimmedUrl.startsWith("https://", ignoreCase = true)
+        ) {
+            _addSubscription.update {
+                it.copy(errorRes = R.string.subscriptions_error_invalid_url)
+            }
+            return
+        }
+        if (state.submitting) return
+        _addSubscription.update { it.copy(submitting = true, errorRes = null) }
+        viewModelScope.launch {
+            try {
+                subscriptionRepository.add(
+                    name = state.name.trim().ifBlank {
+                        context.getString(R.string.subscriptions_default_name)
+                    },
+                    url = trimmedUrl
+                )
+                _addSubscription.update { it.copy(visible = false) }
+                _updateMessage.value = context.getString(R.string.subscriptions_added)
+            } catch (e: Exception) {
+                _addSubscription.update { it.copy(errorRes = subscriptionErrorRes(e)) }
+            } finally {
+                _addSubscription.update { it.copy(submitting = false) }
+            }
+        }
+    }
+
+    fun refreshSubscription(context: Context, id: Long) {
+        if (_isUpdating.value) return
+        _isUpdating.value = true
+        viewModelScope.launch {
+            try {
+                val applied = refreshOne(id)
+                _updateMessage.value =
+                    context.getString(R.string.subscriptions_updated, applied)
+            } catch (e: Exception) {
+                _updateMessage.value = context.getString(subscriptionErrorRes(e))
+            } finally {
+                _isUpdating.value = false
+            }
+        }
+    }
+
+    fun refreshAllSubscriptions(context: Context) {
+        if (_isUpdating.value) return
+        _isUpdating.value = true
+        viewModelScope.launch {
+            try {
+                val snapshot = subscriptions.value
+                var successes = 0
+                snapshot.forEach { subscription ->
+                    try {
+                        refreshOne(subscription.id)
+                        successes++
+                    } catch (_: Exception) {
+                        // One failing feed must not abort the whole sync.
+                    }
+                }
+                _updateMessage.value = context.getString(
+                    R.string.subscriptions_sync_summary,
+                    successes,
+                    snapshot.size
+                )
+            } finally {
+                _isUpdating.value = false
+            }
+        }
+    }
+
+    fun deleteSubscription(id: Long) {
+        viewModelScope.launch {
+            subscriptionRepository.delete(id)
+        }
+    }
+
+    private suspend fun refreshOne(id: Long): Int = subscriptionRepository.refresh(id)
+
+    private fun subscriptionErrorRes(e: Exception): Int = when (e) {
+        is SubscriptionFetchException -> when (e.error) {
+            SubscriptionError.INVALID_URL,
+            SubscriptionError.INSECURE_SCHEME -> R.string.subscriptions_error_invalid_url
+            SubscriptionError.TOO_LARGE -> R.string.subscriptions_error_too_large
+            SubscriptionError.EMPTY_FEED -> R.string.subscriptions_error_empty
+            SubscriptionError.HTTP_ERROR -> R.string.subscriptions_error_http
+            SubscriptionError.REDIRECT -> R.string.subscriptions_error_redirect
+            SubscriptionError.NETWORK -> R.string.subscriptions_error_network
+        }
+        else -> R.string.subscriptions_error_network
     }
 
     fun updateRemoteProfile(context: Context) {

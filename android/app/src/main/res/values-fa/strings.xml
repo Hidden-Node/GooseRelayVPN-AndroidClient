@@ -208,4 +208,27 @@
     <string name="common_error">خطا</string>
     <string name="common_notification">پیام</string>
     <string name="common_unknown_error">خطای نامشخص</string>
+    <string name="subscriptions_add">افزودن اشتراک</string>
+    <string name="subscriptions_manage">مدیریت اشتراک‌ها</string>
+    <string name="subscriptions_all_filter">همه</string>
+    <string name="subscriptions_sync_all">بروزرسانی اشتراک‌ها</string>
+    <string name="subscriptions_url_hint">نشانی اشتراک (&#x2066;http://&#x2069; یا &#x2066;https://&#x2069;)</string>
+    <string name="subscriptions_name_hint">نام اشتراک (اختیاری)</string>
+    <string name="subscriptions_default_name">اشتراک</string>
+    <string name="subscriptions_empty_filtered">هیچ پروفایلی در این اشتراک نیست</string>
+    <string name="subscriptions_empty">هنوز اشتراکی نیست</string>
+    <string name="subscriptions_refresh">بروزرسانی</string>
+    <string name="subscriptions_delete">حذف</string>
+    <string name="subscriptions_delete_confirm_title">حذف اشتراک؟</string>
+    <string name="subscriptions_delete_confirm_message">«%1$s» و پروفایل‌های آن حذف می‌شوند.</string>
+    <string name="subscriptions_added">اشتراک اضافه شد</string>
+    <string name="subscriptions_updated">%1$d پروفایل بروزرسانی شد</string>
+    <string name="subscriptions_sync_summary">%1$d از %2$d اشتراک بروزرسانی شد</string>
+    <string name="subscriptions_profile_count">%1$d پروفایل</string>
+    <string name="subscriptions_error_invalid_url">یک نشانی معتبر &#x2066;http://&#x2069; یا &#x2066;https://&#x2069; وارد کنید</string>
+    <string name="subscriptions_error_too_large">حجم اشتراک بیش از ۲ مگابایت است</string>
+    <string name="subscriptions_error_empty">اشتراک هیچ پروفایل معتبری ندارد</string>
+    <string name="subscriptions_error_http">سرور اشتراک خطا برگرداند</string>
+    <string name="subscriptions_error_redirect">تغییر مسیر بیش از حد یا نامعتبر</string>
+    <string name="subscriptions_error_network">دانلود اشتراک ممکن نشد</string>
 </resources>

@@ -44,6 +44,33 @@ class ProfileMigrationsTest {
     }
 
     @Test
+    fun `v5 schema has subscriptions table and nullable profile subscriptionId`() {
+        val schema = JSONObject(
+            File("schemas/com.gooserelay.gooserelayvpn.data.local.AppDatabase/5.json").readText()
+        ).getJSONObject("database")
+        assertThat(schema.getInt("version")).isEqualTo(5)
+
+        val entities = (0 until schema.getJSONArray("entities").length()).associate { i ->
+            val entity = schema.getJSONArray("entities").getJSONObject(i)
+            entity.getString("tableName") to entity
+        }
+        assertThat(entities.keys).containsExactly("profiles", "subscriptions")
+
+        val profileFields = (0 until entities.getValue("profiles")
+            .getJSONArray("fields").length()).map { i ->
+            entities.getValue("profiles").getJSONArray("fields").getJSONObject(i).getString("fieldPath")
+        }
+        assertThat(profileFields).contains("subscriptionId")
+
+        val subscriptionFields = (0 until entities.getValue("subscriptions")
+            .getJSONArray("fields").length()).map { i ->
+            entities.getValue("subscriptions").getJSONArray("fields").getJSONObject(i).getString("fieldPath")
+        }
+        assertThat(subscriptionFields)
+            .containsExactly("id", "name", "url", "lastUpdated")
+    }
+
+    @Test
     fun `v2 table migrates to all 16 columns preserving data`() {
         val schemaJson = File("schemas/com.gooserelay.gooserelayvpn.data.local.AppDatabase/2.json")
             .readText()

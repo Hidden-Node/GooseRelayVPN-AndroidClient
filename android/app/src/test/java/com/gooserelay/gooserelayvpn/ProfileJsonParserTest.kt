@@ -4,7 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.gooserelay.gooserelayvpn.data.local.ProfileDao
 import com.gooserelay.gooserelayvpn.data.local.ProfileEntity
+import com.gooserelay.gooserelayvpn.data.local.SubscriptionDao
+import com.gooserelay.gooserelayvpn.data.local.SubscriptionEntity
 import com.gooserelay.gooserelayvpn.data.repository.ProfileRepository
+import com.gooserelay.gooserelayvpn.data.repository.SubscriptionRepository
 import com.gooserelay.gooserelayvpn.ui.profiles.ProfilesViewModel
 import com.gooserelay.gooserelayvpn.ui.settings.SettingsViewModel
 import com.gooserelay.gooserelayvpn.util.ConfigGenerator
@@ -26,9 +29,23 @@ import org.junit.Test
  */
 class ProfileJsonParserTest {
 
-    private fun vm() = ProfilesViewModel(ProfileRepository(NoopProfileDao()))
+    private fun vm(): ProfilesViewModel {
+        val dao = NoopProfileDao()
+        return ProfilesViewModel(
+            ProfileRepository(dao),
+            SubscriptionRepository(NoopSubscriptionDao(), dao)
+        )
+    }
     private fun settingsVm() =
         SettingsViewModel(ProfileRepository(NoopProfileDao()), SavedStateHandle())
+
+    private class NoopSubscriptionDao : SubscriptionDao {
+        override fun getAllSubscriptions(): Flow<List<SubscriptionEntity>> = emptyFlow()
+        override suspend fun getSubscriptionById(id: Long): SubscriptionEntity? = null
+        override suspend fun getSubscriptionByUrl(url: String): SubscriptionEntity? = null
+        override suspend fun insertSubscription(sub: SubscriptionEntity): Long = 0L
+        override suspend fun updateSubscription(sub: SubscriptionEntity) {}
+    }
 
     private class NoopProfileDao : ProfileDao {
         override fun getAllProfiles(): Flow<List<ProfileEntity>> = emptyFlow()
@@ -43,6 +60,9 @@ class ProfileJsonParserTest {
         override suspend fun deselectAll() {}
         override suspend fun selectProfile(id: Long) {}
         override suspend fun countProfiles(): Int = 0
+        override suspend fun countSubscriptions(subId: Long): Int = 0
+        override suspend fun deleteProfilesBySubscription(subId: Long) {}
+        override suspend fun deleteSubscriptionRow(subId: Long) {}
         override suspend fun setSelectedProfile(id: Long) {}
     }
 

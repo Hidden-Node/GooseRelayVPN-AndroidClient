@@ -89,7 +89,9 @@ class LocalizationResourceParityTest {
         "settings_tunnel_key",
         "settings_sni",
         "home_howto_body",
-        "global_connection_mode_help"
+        "global_connection_mode_help",
+        "subscriptions_url_hint",
+        "subscriptions_error_invalid_url"
     )
 
     @Test

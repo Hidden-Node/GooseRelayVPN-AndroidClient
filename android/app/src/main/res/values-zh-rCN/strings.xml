@@ -208,4 +208,27 @@
     <string name="common_error">错误</string>
     <string name="common_notification">通知</string>
     <string name="common_unknown_error">未知错误</string>
+    <string name="subscriptions_add">添加订阅</string>
+    <string name="subscriptions_manage">管理订阅</string>
+    <string name="subscriptions_all_filter">全部</string>
+    <string name="subscriptions_sync_all">更新订阅</string>
+    <string name="subscriptions_url_hint">订阅链接（http:// 或 https://）</string>
+    <string name="subscriptions_name_hint">订阅名称（可选）</string>
+    <string name="subscriptions_default_name">订阅</string>
+    <string name="subscriptions_empty_filtered">此订阅下暂无配置文件</string>
+    <string name="subscriptions_empty">暂无订阅</string>
+    <string name="subscriptions_refresh">刷新</string>
+    <string name="subscriptions_delete">删除</string>
+    <string name="subscriptions_delete_confirm_title">删除订阅？</string>
+    <string name="subscriptions_delete_confirm_message">将删除“%1$s”及其配置文件。</string>
+    <string name="subscriptions_added">订阅已添加</string>
+    <string name="subscriptions_updated">已更新 %1$d 个配置文件</string>
+    <string name="subscriptions_sync_summary">已更新 %1$d/%2$d 个订阅</string>
+    <string name="subscriptions_profile_count">%1$d 个配置文件</string>
+    <string name="subscriptions_error_invalid_url">请输入有效的 http:// 或 https:// 链接</string>
+    <string name="subscriptions_error_too_large">订阅大小超过 2 MB</string>
+    <string name="subscriptions_error_empty">订阅中没有有效的配置文件</string>
+    <string name="subscriptions_error_http">订阅服务器返回错误</string>
+    <string name="subscriptions_error_redirect">重定向过多或无效</string>
+    <string name="subscriptions_error_network">无法下载订阅</string>
 </resources>

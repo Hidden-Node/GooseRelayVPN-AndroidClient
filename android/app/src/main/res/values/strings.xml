@@ -211,4 +211,27 @@
     <string name="project_main_github" translatable="false">https://github.com/Kianmhz/GooseRelayVPN</string>
     <string name="project_android_client_github" translatable="false">https://github.com/Hidden-Node/GooseRelayVPN-AndroidClient</string>
     <string name="engine_version" translatable="false">v1.7.1</string>
+    <string name="subscriptions_add">Add Subscription</string>
+    <string name="subscriptions_manage">Manage Subscriptions</string>
+    <string name="subscriptions_all_filter">All</string>
+    <string name="subscriptions_sync_all">Update Subscriptions</string>
+    <string name="subscriptions_url_hint">Subscription URL (http:// or https://)</string>
+    <string name="subscriptions_name_hint">Subscription name (optional)</string>
+    <string name="subscriptions_default_name">Subscription</string>
+    <string name="subscriptions_empty_filtered">No profiles in this subscription</string>
+    <string name="subscriptions_empty">No subscriptions yet</string>
+    <string name="subscriptions_refresh">Refresh</string>
+    <string name="subscriptions_delete">Delete</string>
+    <string name="subscriptions_delete_confirm_title">Delete subscription?</string>
+    <string name="subscriptions_delete_confirm_message">This removes %1$s and its profiles.</string>
+    <string name="subscriptions_added">Subscription added</string>
+    <string name="subscriptions_updated">Updated %1$d profiles</string>
+    <string name="subscriptions_sync_summary">Updated %1$d of %2$d subscriptions</string>
+    <string name="subscriptions_profile_count">%1$d profiles</string>
+    <string name="subscriptions_error_invalid_url">Enter a valid http:// or https:// URL</string>
+    <string name="subscriptions_error_too_large">Subscription is larger than 2 MB</string>
+    <string name="subscriptions_error_empty">Subscription contains no valid profiles</string>
+    <string name="subscriptions_error_http">Subscription server returned an error</string>
+    <string name="subscriptions_error_redirect">Too many or invalid redirects</string>
+    <string name="subscriptions_error_network">Could not download the subscription</string>
 </resources>

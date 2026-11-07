@@ -208,4 +208,27 @@
     <string name="common_error">Ошибка</string>
     <string name="common_notification">Уведомление</string>
     <string name="common_unknown_error">Неизвестная ошибка</string>
+    <string name="subscriptions_add">Добавить подписку</string>
+    <string name="subscriptions_manage">Управление подписками</string>
+    <string name="subscriptions_all_filter">Все</string>
+    <string name="subscriptions_sync_all">Обновить подписки</string>
+    <string name="subscriptions_url_hint">URL подписки (http:// или https://)</string>
+    <string name="subscriptions_name_hint">Название подписки (необязательно)</string>
+    <string name="subscriptions_default_name">Подписка</string>
+    <string name="subscriptions_empty_filtered">В этой подписке нет профилей</string>
+    <string name="subscriptions_empty">Подписок пока нет</string>
+    <string name="subscriptions_refresh">Обновить</string>
+    <string name="subscriptions_delete">Удалить</string>
+    <string name="subscriptions_delete_confirm_title">Удалить подписку?</string>
+    <string name="subscriptions_delete_confirm_message">«%1$s» и её профили будут удалены.</string>
+    <string name="subscriptions_added">Подписка добавлена</string>
+    <string name="subscriptions_updated">Обновлено профилей: %1$d</string>
+    <string name="subscriptions_sync_summary">Обновлено %1$d из %2$d подписок</string>
+    <string name="subscriptions_profile_count">Профилей: %1$d</string>
+    <string name="subscriptions_error_invalid_url">Введите корректный URL http:// или https://</string>
+    <string name="subscriptions_error_too_large">Подписка больше 2 МБ</string>
+    <string name="subscriptions_error_empty">В подписке нет корректных профилей</string>
+    <string name="subscriptions_error_http">Сервер подписки вернул ошибку</string>
+    <string name="subscriptions_error_redirect">Слишком много или неверные перенаправления</string>
+    <string name="subscriptions_error_network">Не удалось загрузить подписку</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.gooserelay.gooserelayvpn.data.local
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -30,9 +31,15 @@ import androidx.room.RoomDatabase
  * Manual migrations always win over an AutoMigration declared for the same
  * versions. Remember to commit the new schemas/(N+1).json that KSP emits.
  */
-@Database(entities = [ProfileEntity::class], version = 4, exportSchema = true)
+@Database(
+    entities = [ProfileEntity::class, SubscriptionEntity::class],
+    version = 5,
+    exportSchema = true,
+    autoMigrations = [AutoMigration(from = 4, to = 5)]
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
+    abstract fun subscriptionDao(): SubscriptionDao
 
     companion object {
         @Volatile
