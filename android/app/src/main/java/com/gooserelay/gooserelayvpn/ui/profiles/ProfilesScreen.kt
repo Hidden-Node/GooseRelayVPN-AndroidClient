@@ -30,13 +30,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.SnackbarHost
@@ -249,6 +253,14 @@ fun ProfilesScreen(
                 title = stringResource(R.string.title_profiles),
                 onBack = onBack,
                 actions = {
+                    if (subscriptions.isNotEmpty()) {
+                        IconButton(onClick = { showManageSubscriptions = true }) {
+                            Icon(
+                                Icons.Filled.FolderSpecial,
+                                contentDescription = stringResource(R.string.subscriptions_manage)
+                            )
+                        }
+                    }
                     if (isUpdating) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp).padding(4.dp),
@@ -277,7 +289,20 @@ fun ProfilesScreen(
                             onDismissRequest = { menuExpanded = false }
                         ) {
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.subscriptions_add)) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.CloudDownload, contentDescription = null)
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    viewModel.openAddSubscriptionDialog()
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.profiles_from_clipboard)) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.ContentPaste, contentDescription = null)
+                                },
                                 onClick = {
                                     menuExpanded = false
                                     val text = clipboardManager.getText()?.text?.trim()
@@ -305,7 +330,7 @@ fun ProfilesScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.profiles_add_qr)) },
                                 leadingIcon = {
-                                    Icon(Icons.Filled.QrCodeScanner, contentDescription = stringResource(R.string.profiles_add_qr))
+                                    Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
                                 },
                                 onClick = {
                                     menuExpanded = false
@@ -314,27 +339,19 @@ fun ProfilesScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.profiles_from_json_file)) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.UploadFile, contentDescription = null)
+                                },
                                 onClick = {
                                     menuExpanded = false
                                     importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.subscriptions_add)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    viewModel.openAddSubscriptionDialog()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.subscriptions_manage)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    showManageSubscriptions = true
-                                }
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.profiles_add_manual)) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Edit, contentDescription = null)
+                                },
                                 onClick = {
                                     menuExpanded = false
                                     editingId = null
