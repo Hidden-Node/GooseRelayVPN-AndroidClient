@@ -226,4 +226,8 @@
     <string name="subscriptions_error_http">订阅服务器返回错误</string>
     <string name="subscriptions_error_redirect">重定向过多或无效</string>
     <string name="subscriptions_error_network">无法下载订阅</string>
+    <string name="profiles_url_choice_dialog_title">检测到网页链接</string>
+    <string name="profiles_url_choice_dialog_desc">该链接以 http(s) 开头。您是要将其添加为订阅源（推荐），还是作为单个配置文件 JSON 导入？</string>
+    <string name="profiles_import_as_subscription_btn">添加为订阅</string>
+    <string name="profiles_import_as_single_profile_btn">单个配置 JSON</string>
 </resources>

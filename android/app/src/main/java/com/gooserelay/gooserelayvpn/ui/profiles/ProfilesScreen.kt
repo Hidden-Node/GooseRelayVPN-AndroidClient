@@ -90,6 +90,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -180,6 +181,7 @@ fun ProfilesScreen(
     var selectedSubscriptionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showManageSubscriptions by rememberSaveable { mutableStateOf(false) }
     var pendingSubscriptionDelete by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingImportUrl by rememberSaveable { mutableStateOf<String?>(null) }
     val displayedProfiles = remember(profiles, selectedSubscriptionId) {
         selectedSubscriptionId?.let { id -> profiles.filter { it.subscriptionId == id } }
             ?: profiles
@@ -229,7 +231,10 @@ fun ProfilesScreen(
     val qrScanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val text = result.data?.getStringExtra(ScannerActivity.EXTRA_SCAN_RESULT)?.trim()
-            if (text.isNullOrBlank()) {
+            val detectedUrl = ProfilesViewModel.extractWebUrl(text)
+            if (!detectedUrl.isNullOrEmpty()) {
+                pendingImportUrl = detectedUrl
+            } else if (text.isNullOrBlank()) {
                 showErrorDialog = context.getString(R.string.profiles_import_failed_general)
             } else {
                 val profile = GooseRelayProtocol.parse(text) ?: ProfileJsonParser.parse(text)
@@ -302,21 +307,16 @@ fun ProfilesScreen(
                                 onClick = {
                                     menuExpanded = false
                                     val text = clipboardManager.getText()?.text?.trim()
-                                    if (!text.isNullOrBlank()) {
-                                        when {
-                                            text.startsWith("http://") || text.startsWith("https://") -> {
-                                                selectedSubscriptionId = null
-                                                viewModel.importProfileFromUrl(text, context)
-                                            }
-                                            else -> {
-                                                val profile = GooseRelayProtocol.parse(text) ?: ProfileJsonParser.parse(text)
-                                                if (profile != null) {
-                                                    selectedSubscriptionId = null
-                                                    viewModel.addProfile(profile)
-                                                } else {
-                                                    showErrorDialog = context.getString(R.string.profiles_import_failed_general)
-                                                }
-                                            }
+                                    val detectedUrl = ProfilesViewModel.extractWebUrl(text)
+                                    if (!detectedUrl.isNullOrEmpty()) {
+                                        pendingImportUrl = detectedUrl
+                                    } else if (!text.isNullOrBlank()) {
+                                        val profile = GooseRelayProtocol.parse(text) ?: ProfileJsonParser.parse(text)
+                                        if (profile != null) {
+                                            selectedSubscriptionId = null
+                                            viewModel.addProfile(profile)
+                                        } else {
+                                            showErrorDialog = context.getString(R.string.profiles_import_failed_general)
                                         }
                                     } else {
                                         showErrorDialog = context.getString(R.string.global_clipboard_empty_msg)
@@ -649,6 +649,22 @@ fun ProfilesScreen(
             onUrlChange = viewModel::onSubscriptionUrlChange,
             onSubmit = { viewModel.submitSubscription(context) },
             onDismiss = viewModel::dismissAddSubscriptionDialog
+        )
+    }
+
+    pendingImportUrl?.let { url ->
+        UrlChoiceDialog(
+            url = url,
+            onAddSubscription = {
+                pendingImportUrl = null
+                viewModel.openAddSubscriptionDialog(initialUrl = url)
+            },
+            onImportSingleProfile = {
+                pendingImportUrl = null
+                selectedSubscriptionId = null
+                viewModel.importProfileFromUrl(url, context)
+            },
+            onDismiss = { pendingImportUrl = null }
         )
     }
 
@@ -1084,5 +1100,68 @@ private fun ManageSubscriptionsDialog(
                 Text(stringResource(R.string.action_ok))
             }
         }
+    )
+}
+
+@Composable
+private fun UrlChoiceDialog(
+    url: String,
+    onAddSubscription: () -> Unit,
+    onImportSingleProfile: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.profiles_url_choice_dialog_title)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
+            ) {
+                Text(stringResource(R.string.profiles_url_choice_dialog_desc))
+                Text(
+                    text = url,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        textDirection = TextDirection.Ltr,
+                        textAlign = TextAlign.Start
+                    ),
+                    color = MdvColor.Primary,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        },
+        confirmButton = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
+            ) {
+                Button(
+                    onClick = onAddSubscription,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Filled.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(MdvSpace.S4)
+                    )
+                    Spacer(modifier = Modifier.width(MdvSpace.S2))
+                    Text(stringResource(R.string.profiles_import_as_subscription_btn))
+                }
+                OutlinedButton(
+                    onClick = onImportSingleProfile,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.profiles_import_as_single_profile_btn))
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        },
+        dismissButton = null
     )
 }

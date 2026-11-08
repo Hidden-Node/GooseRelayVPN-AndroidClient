@@ -226,4 +226,8 @@
     <string name="subscriptions_error_http">Сервер подписки вернул ошибку</string>
     <string name="subscriptions_error_redirect">Слишком много или неверные перенаправления</string>
     <string name="subscriptions_error_network">Не удалось загрузить подписку</string>
+    <string name="profiles_url_choice_dialog_title">Обнаружена веб-ссылка</string>
+    <string name="profiles_url_choice_dialog_desc">Ссылка начинается с http(s). Добавить ее как подписку (рекомендуется) или импортировать как JSON одного профиля?</string>
+    <string name="profiles_import_as_subscription_btn">Добавить как подписку</string>
+    <string name="profiles_import_as_single_profile_btn">JSON одного профиля</string>
 </resources>

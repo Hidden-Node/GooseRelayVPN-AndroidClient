@@ -232,4 +232,8 @@
     <string name="subscriptions_error_http">Subscription server returned an error</string>
     <string name="subscriptions_error_redirect">Too many or invalid redirects</string>
     <string name="subscriptions_error_network">Could not download the subscription</string>
+    <string name="profiles_url_choice_dialog_title">Web Link Detected</string>
+    <string name="profiles_url_choice_dialog_desc">The entered link starts with http(s). Would you like to add it as a Subscription feed (recommended), or import it as a single Profile JSON?</string>
+    <string name="profiles_import_as_subscription_btn">Add Subscription</string>
+    <string name="profiles_import_as_single_profile_btn">Single Profile JSON</string>
 </resources>

@@ -98,4 +98,48 @@ class ProfilesViewModelParseTest {
         val p = vm().parseProfileFromJson(json, defaultName = "fallback")!!
         assertThat(p.name).isEqualTo("fallback")
     }
+
+    @Test
+    fun `openAddSubscriptionDialog with initialUrl pre-fills state url`() {
+        val viewModel = vm()
+        viewModel.openAddSubscriptionDialog(initialUrl = "https://example.com/feed")
+        val state = viewModel.addSubscription.value
+        assertThat(state.visible).isTrue()
+        assertThat(state.url).isEqualTo("https://example.com/feed")
+        assertThat(state.name).isEmpty()
+        assertThat(state.errorRes).isNull()
+    }
+
+    @Test
+    fun `extractWebUrl with valid http and https urls`() {
+        assertThat(ProfilesViewModel.extractWebUrl("http://example.com/sub")).isEqualTo("http://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("https://example.com/sub")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("HTTPS://EXAMPLE.COM/SUB")).isEqualTo("HTTPS://EXAMPLE.COM/SUB")
+    }
+
+    @Test
+    fun `extractWebUrl trims whitespace tabs and extracts first token of multiline text`() {
+        assertThat(ProfilesViewModel.extractWebUrl("   https://example.com/sub   ")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("https://example.com/sub\t#US-Node\nUpdated 2026")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("https://example.com/sub (US Server)\nUpdated 2026")).isEqualTo("https://example.com/sub")
+    }
+
+    @Test
+    fun `extractWebUrl strips enclosing brackets and trailing punctuation`() {
+        assertThat(ProfilesViewModel.extractWebUrl("<https://example.com/sub>")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("\"https://example.com/sub\"")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("https://example.com/sub.")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("https://example.com/sub,")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("(https://example.com/sub)")).isEqualTo("https://example.com/sub")
+    }
+
+    @Test
+    fun `extractWebUrl returns null for non-http text or json`() {
+        assertThat(ProfilesViewModel.extractWebUrl(null)).isNull()
+        assertThat(ProfilesViewModel.extractWebUrl("")).isNull()
+        assertThat(ProfilesViewModel.extractWebUrl("   ")).isNull()
+        assertThat(ProfilesViewModel.extractWebUrl("goose-relay://host:1234")).isNull()
+        assertThat(ProfilesViewModel.extractWebUrl("""{"name":"test"}""")).isNull()
+        assertThat(ProfilesViewModel.extractWebUrl("ftp://example.com/sub")).isNull()
+    }
 }

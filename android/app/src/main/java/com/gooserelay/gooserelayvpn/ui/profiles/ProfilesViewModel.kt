@@ -98,9 +98,9 @@ class ProfilesViewModel @Inject constructor(
         }
     }
 
-    fun openAddSubscriptionDialog() {
+    fun openAddSubscriptionDialog(initialUrl: String = "") {
         _addSubscription.update {
-            it.copy(visible = true, name = "", url = "", errorRes = null)
+            it.copy(visible = true, name = "", url = initialUrl, errorRes = null)
         }
     }
 
@@ -282,4 +282,22 @@ class ProfilesViewModel @Inject constructor(
 
     fun parseProfileFromJson(raw: String, defaultName: String? = null): ProfileEntity? =
         ProfileJsonParser.parse(raw, defaultName)
+
+    companion object {
+        fun extractWebUrl(raw: String?): String? {
+            if (raw.isNullOrBlank()) return null
+            val firstLine = raw.lines().firstOrNull()?.trim() ?: return null
+            val candidate = firstLine.split(Regex("\\s+")).firstOrNull()?.trim() ?: return null
+            val token = candidate
+                .removePrefix("<").removePrefix("\"").removePrefix("'").removePrefix("(")
+                .trimEnd('.', ',', ';', ':', ')', '>', '"', '\'')
+            return if (token.startsWith("http://", ignoreCase = true) ||
+                token.startsWith("https://", ignoreCase = true)
+            ) {
+                token
+            } else {
+                null
+            }
+        }
+    }
 }
