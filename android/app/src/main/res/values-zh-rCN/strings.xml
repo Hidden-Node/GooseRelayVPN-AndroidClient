@@ -86,8 +86,6 @@
     <string name="profiles_share_sheet">通过…分享</string>
     <string name="profiles_share_title">分享配置文件</string>
     <string name="profiles_import_deep_link_success">配置文件已导入：%s</string>
-    <string name="profiles_remote_url">远程 URL（订阅链接）</string>
-    <string name="profiles_remote_url_help">如果设置，该配置文件将从此 URL 更新</string>
     <string name="profiles_name">配置文件名称</string>
     <string name="profiles_host_localhost">127.0.0.1 (仅本机)</string>
     <string name="profiles_host_all_interfaces">0.0.0.0 (所有网络接口)</string>
@@ -102,11 +100,8 @@
     <string name="profiles_validation_auth_mismatch">socks_user 和 socks_pass 必须同时填写或同时留空</string>
     <string name="profiles_import_failed_general">导入失败：无效的 JSON、URL 或 goose-relay:// 格式。</string>
     <string name="profiles_selected">已选择</string>
-    <string name="profiles_update_remote">从远程更新</string>
     <string name="profiles_update_success">已成功从远程服务器更新配置文件</string>
     <string name="profiles_update_error">更新配置文件失败：%1$s</string>
-    <string name="profiles_no_selection_update">请选择要更新的配置文件</string>
-    <string name="profiles_no_remote_url">此配置文件为本地配置，没有可更新的远程 URL。</string>
     <string name="profiles_invalid_json_format">JSON 格式无效</string>
     <string name="profiles_import_failed_msg">导入失败：%1$s</string>
     <string name="profiles_export_target_missing">导出失败：配置文件已不存在。</string>

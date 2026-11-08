@@ -93,13 +93,6 @@ class ProfilesViewModelParseTest {
     }
 
     @Test
-    fun `stores remoteUrl when provided`() {
-        val json = """{"tunnel_key":"k"}"""
-        val p = vm().parseProfileFromJson(json, remoteUrl = "https://example.com/p.json")!!
-        assertThat(p.remoteUrl).isEqualTo("https://example.com/p.json")
-    }
-
-    @Test
     fun `defaults name to defaultName when missing`() {
         val json = """{"tunnel_key":"k"}"""
         val p = vm().parseProfileFromJson(json, defaultName = "fallback")!!

@@ -3,8 +3,10 @@ package com.gooserelay.gooserelayvpn.data.local
 import android.content.Context
 import androidx.room.AutoMigration
 import androidx.room.Database
+import androidx.room.DeleteColumn
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.AutoMigrationSpec
 
 /**
  * Schema change policy:
@@ -33,11 +35,17 @@ import androidx.room.RoomDatabase
  */
 @Database(
     entities = [ProfileEntity::class, SubscriptionEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 4, to = 5)]
+    autoMigrations = [
+        AutoMigration(from = 4, to = 5),
+        AutoMigration(from = 5, to = 6, spec = AppDatabase.Schema5to6::class)
+    ]
 )
 abstract class AppDatabase : RoomDatabase() {
+    @DeleteColumn(tableName = "profiles", columnName = "remoteUrl")
+    class Schema5to6 : AutoMigrationSpec
+
     abstract fun profileDao(): ProfileDao
     abstract fun subscriptionDao(): SubscriptionDao
 

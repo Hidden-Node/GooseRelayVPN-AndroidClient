@@ -73,6 +73,21 @@ class ProfileMigrationsTest {
     }
 
     @Test
+    fun `v6 schema drops remoteUrl column`() {
+        val schema = JSONObject(
+            File("schemas/com.gooserelay.gooserelayvpn.data.local.AppDatabase/6.json").readText()
+        ).getJSONObject("database")
+        assertThat(schema.getInt("version")).isEqualTo(6)
+
+        val profileFields = (0 until schema.getJSONArray("entities").getJSONObject(0)
+            .getJSONArray("fields").length()).associate { i ->
+            val field = schema.getJSONArray("entities").getJSONObject(0).getJSONArray("fields").getJSONObject(i)
+            field.getString("fieldPath") to field
+        }
+        assertThat(profileFields.keys).doesNotContain("remoteUrl")
+    }
+
+    @Test
     fun `v2 table migrates to all 16 columns preserving data`() {
         val schemaJson = File("schemas/com.gooserelay.gooserelayvpn.data.local.AppDatabase/2.json")
             .readText()

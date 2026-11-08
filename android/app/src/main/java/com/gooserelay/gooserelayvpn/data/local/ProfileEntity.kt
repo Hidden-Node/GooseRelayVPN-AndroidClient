@@ -18,7 +18,6 @@ data class ProfileEntity(
     val tunnelKey: String = "",
     val coalesceStepMs: Int = 0,
     val idleSlotsPerBucket: Int = 2,
-    val remoteUrl: String? = null,
     val subscriptionId: Long? = null,
     val isSelected: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()

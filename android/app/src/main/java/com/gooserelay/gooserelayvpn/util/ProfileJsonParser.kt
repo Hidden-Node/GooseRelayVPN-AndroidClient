@@ -22,13 +22,13 @@ object ProfileJsonParser {
         "[\"www.google.com\", \"mail.google.com\", \"accounts.google.com\"]"
 
     /** Full-parse variant: absent fields become defaults. */
-    fun parse(raw: String, defaultName: String? = null, remoteUrl: String? = null): ProfileEntity? {
+    fun parse(raw: String, defaultName: String? = null): ProfileEntity? {
         // Note: Gson.fromJson returns null (instead of throwing) for empty
         // input and the "null" literal, so the null root is checked
         // explicitly — a runCatching{}.map{} chain lets that NPE escape.
         return try {
             val root = gson.fromJson(raw, JsonObject::class.java) ?: return null
-            fromRoot(root, defaultName ?: "Imported", remoteUrl)
+            fromRoot(root, defaultName ?: "Imported")
         } catch (_: Exception) {
             null
         }
@@ -65,7 +65,7 @@ object ProfileJsonParser {
         }
     }
 
-    private fun fromRoot(root: JsonObject, name: String, remoteUrl: String?): ProfileEntity {
+    private fun fromRoot(root: JsonObject, name: String): ProfileEntity {
         return ProfileEntity(
             name = root.get("name")?.asString ?: name,
             debugTiming = root.get("debug_timing")?.asBoolean ?: false,
@@ -78,8 +78,7 @@ object ProfileJsonParser {
             scriptKeysText = parseScriptKeys(root.get("script_keys")) ?: "",
             tunnelKey = root.get("tunnel_key")?.asString ?: "",
             coalesceStepMs = root.get("coalesce_step_ms")?.asInt ?: 0,
-            idleSlotsPerBucket = root.get("idle_slots_per_bucket")?.asInt?.coerceIn(1, 3) ?: 2,
-            remoteUrl = remoteUrl
+            idleSlotsPerBucket = root.get("idle_slots_per_bucket")?.asInt?.coerceIn(1, 3) ?: 2
         )
     }
 

@@ -267,17 +267,12 @@ fun ProfilesScreen(
                             strokeWidth = 2.dp,
                             color = MdvColor.Primary
                         )
-                    } else {
-                        if (subscriptions.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.refreshAllSubscriptions(context) }) {
-                                Icon(
-                                    Icons.Filled.Sync,
-                                    contentDescription = stringResource(R.string.subscriptions_sync_all)
-                                )
-                            }
-                        }
-                        IconButton(onClick = { viewModel.updateRemoteProfile(context) }) {
-                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.profiles_update_remote))
+                    } else if (subscriptions.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.refreshAllSubscriptions(context) }) {
+                            Icon(
+                                Icons.Filled.Sync,
+                                contentDescription = stringResource(R.string.subscriptions_sync_all)
+                            )
                         }
                     }
                     Box {
@@ -760,7 +755,6 @@ private fun ProfileEditorDialog(
     var tunnelKey by rememberSaveable { mutableStateOf(profile?.tunnelKey ?: "") }
     var coalesceStepMs by rememberSaveable { mutableStateOf((profile?.coalesceStepMs ?: 0).toString()) }
     var idleSlotsPerBucket by rememberSaveable { mutableStateOf((profile?.idleSlotsPerBucket ?: 2).toString()) }
-    var remoteUrl by rememberSaveable { mutableStateOf(profile?.remoteUrl ?: "") }
     var showErrorDialog by rememberSaveable { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -796,7 +790,6 @@ private fun ProfileEditorDialog(
                         tunnelKey = tunnelKey,
                         coalesceStepMs = coalesceStepMs.toIntOrNull() ?: 0,
                         idleSlotsPerBucket = idleSlotsPerBucket.toIntOrNull()?.coerceIn(1, 3) ?: 2,
-                        remoteUrl = remoteUrl.ifBlank { null },
                         subscriptionId = profile?.subscriptionId,
                         isSelected = profile?.isSelected ?: false,
                         createdAt = profile?.createdAt ?: System.currentTimeMillis()
@@ -811,14 +804,6 @@ private fun ProfileEditorDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
-                    value = remoteUrl,
-                    onValueChange = { remoteUrl = it },
-                    label = { Text(stringResource(R.string.profiles_remote_url)) },
-                    textStyle = contentTextStyle,
-                    modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text(stringResource(R.string.profiles_remote_url_help)) }
-                )
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.profiles_name)) })
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.settings_debug_timing))

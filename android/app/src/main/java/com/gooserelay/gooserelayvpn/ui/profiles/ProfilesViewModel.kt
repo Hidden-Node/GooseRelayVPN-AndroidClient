@@ -223,69 +223,6 @@ class ProfilesViewModel @Inject constructor(
         else -> R.string.subscriptions_error_network
     }
 
-    fun updateRemoteProfile(context: Context) {
-        viewModelScope.launch {
-            updateStarted()
-            try {
-                val selectedProfile = profileRepository.getSelectedProfileFlow().first()
-                if (selectedProfile == null) {
-                    _updateMessage.value = context.getString(R.string.profiles_no_selection_update)
-                    return@launch
-                }
-
-                val targetUrl = selectedProfile.remoteUrl
-                if (targetUrl.isNullOrBlank()) {
-                    _updateMessage.value = context.getString(R.string.profiles_no_remote_url)
-                    return@launch
-                }
-
-                try {
-                    val json = withContext(Dispatchers.IO) {
-                        val url = URL(targetUrl)
-                        val connection = url.openConnection() as HttpURLConnection
-                        connection.requestMethod = "GET"
-                        connection.connectTimeout = 10000
-                        connection.readTimeout = 10000
-                        val code = connection.responseCode
-                        if (code / 100 != 2) {
-                            val errorBody = try {
-                                connection.errorStream?.bufferedReader()?.use { it.readText() }?.take(200) ?: ""
-                            } catch (_: Exception) { "" }
-                            throw IOException("HTTP $code: $errorBody")
-                        }
-                        connection.inputStream.bufferedReader().use { it.readText() }
-                    }
-
-                    val remoteProfile = parseProfileFromJson(json, remoteUrl = selectedProfile.remoteUrl)
-                    if (remoteProfile != null) {
-                        val updated = selectedProfile.copy(
-                            name = if (remoteProfile.name.isNotBlank()) remoteProfile.name else selectedProfile.name,
-                            debugTiming = remoteProfile.debugTiming,
-                            socksHost = remoteProfile.socksHost,
-                            socksPort = remoteProfile.socksPort,
-                            socksUser = remoteProfile.socksUser,
-                            socksPass = remoteProfile.socksPass,
-                            googleHost = remoteProfile.googleHost,
-                            sniJson = remoteProfile.sniJson,
-                            scriptKeysText = remoteProfile.scriptKeysText,
-                            tunnelKey = remoteProfile.tunnelKey,
-                            coalesceStepMs = remoteProfile.coalesceStepMs,
-                            idleSlotsPerBucket = remoteProfile.idleSlotsPerBucket
-                        )
-                        profileRepository.updateProfile(updated)
-                        _updateMessage.value = context.getString(R.string.profiles_update_success)
-                    } else {
-                        _updateMessage.value = context.getString(R.string.profiles_update_error, context.getString(R.string.profiles_invalid_json_format))
-                    }
-                } catch (e: Exception) {
-                    _updateMessage.value = context.getString(R.string.profiles_update_error, e.localizedMessage ?: context.getString(R.string.common_unknown_error))
-                }
-            } finally {
-                updateFinished()
-            }
-        }
-    }
-
     fun importProfileFromUrl(url: String, context: Context) {
         viewModelScope.launch {
             updateStarted()
@@ -305,7 +242,7 @@ class ProfilesViewModel @Inject constructor(
                     connection.inputStream.bufferedReader().use { it.readText() }
                 }
 
-                val profile = parseProfileFromJson(json, remoteUrl = url)
+                val profile = parseProfileFromJson(json)
                 if (profile != null) {
                     addProfile(profile)
                     _updateMessage.value = context.getString(R.string.profiles_update_success)
@@ -343,6 +280,6 @@ class ProfilesViewModel @Inject constructor(
         }
     }
 
-    fun parseProfileFromJson(raw: String, defaultName: String? = null, remoteUrl: String? = null): ProfileEntity? =
-        ProfileJsonParser.parse(raw, defaultName, remoteUrl)
+    fun parseProfileFromJson(raw: String, defaultName: String? = null): ProfileEntity? =
+        ProfileJsonParser.parse(raw, defaultName)
 }

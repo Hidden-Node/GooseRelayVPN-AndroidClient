@@ -86,8 +86,6 @@
     <string name="profiles_share_sheet">Поделиться через…</string>
     <string name="profiles_share_title">Поделиться профилем</string>
     <string name="profiles_import_deep_link_success">Профиль импортирован: %s</string>
-    <string name="profiles_remote_url">Удаленный URL (подписка)</string>
-    <string name="profiles_remote_url_help">Если указан, профиль будет обновляться по этому URL</string>
     <string name="profiles_name">Имя профиля</string>
     <string name="profiles_host_localhost">127.0.0.1 (только локально)</string>
     <string name="profiles_host_all_interfaces">0.0.0.0 (все интерфейсы)</string>
@@ -102,11 +100,8 @@
     <string name="profiles_validation_auth_mismatch">socks_user и socks_pass должны быть оба заполнены или оба пусты</string>
     <string name="profiles_import_failed_general">Ошибка импорта: неверный формат JSON, URL или goose-relay://.</string>
     <string name="profiles_selected">Выбрано</string>
-    <string name="profiles_update_remote">Обновить с сервера</string>
     <string name="profiles_update_success">Профиль успешно обновлен с удаленного сервера</string>
     <string name="profiles_update_error">Не удалось обновить профиль: %1$s</string>
-    <string name="profiles_no_selection_update">Пожалуйста, выберите профиль для обновления</string>
-    <string name="profiles_no_remote_url">Этот профиль локальный и не имеет URL для обновления.</string>
     <string name="profiles_invalid_json_format">Неверный формат JSON</string>
     <string name="profiles_import_failed_msg">Ошибка импорта: %1$s</string>
     <string name="profiles_export_target_missing">Ошибка экспорта: профиль больше не существует.</string>

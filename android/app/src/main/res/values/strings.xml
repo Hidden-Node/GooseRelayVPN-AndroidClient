@@ -86,8 +86,6 @@
     <string name="profiles_share_sheet">Share via…</string>
     <string name="profiles_share_title">Share Profile</string>
     <string name="profiles_import_deep_link_success">Profile imported: %s</string>
-    <string name="profiles_remote_url">Remote URL (Subscription)</string>
-    <string name="profiles_remote_url_help">If set, this profile will update from this URL</string>
     <string name="profiles_name">Profile Name</string>
     <string name="profiles_host_localhost">127.0.0.1 (localhost only)</string>
     <string name="profiles_host_all_interfaces">0.0.0.0 (all interfaces)</string>
@@ -102,11 +100,8 @@
     <string name="profiles_validation_auth_mismatch">socks_user and socks_pass must both be set or both be empty</string>
     <string name="profiles_import_failed_general">Import failed: invalid JSON, URL, or goose-relay:// format.</string>
     <string name="profiles_selected">Selected</string>
-    <string name="profiles_update_remote">Update Remote</string>
     <string name="profiles_update_success">Profile updated from remote successfully</string>
     <string name="profiles_update_error">Failed to update profile: %1$s</string>
-    <string name="profiles_no_selection_update">Please select a profile to update</string>
-    <string name="profiles_no_remote_url">This profile is local and doesn\'t have a remote URL to update from.</string>
     <string name="profiles_invalid_json_format">Invalid JSON format</string>
     <string name="profiles_import_failed_msg">Import failed: %1$s</string>
     <string name="profiles_export_target_missing">Export failed: profile no longer exists.</string>

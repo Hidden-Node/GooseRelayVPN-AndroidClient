@@ -278,15 +278,7 @@ class ProfileJsonParserTest {
         assertThat(p.scriptKeysText).isEqualTo("plain")
     }
 
-    // Name / remoteUrl propagation.
-
-    @Test
-    fun `parse stores remoteUrl when provided`() {
-        val p = ProfileJsonParser.parse(
-            """{"tunnel_key":"k"}""", remoteUrl = "https://example.com/p.json"
-        )!!
-        assertThat(p.remoteUrl).isEqualTo("https://example.com/p.json")
-    }
+    // Name propagation.
 
     @Test
     fun `parse defaults name to defaultName when missing`() {
@@ -295,14 +287,12 @@ class ProfileJsonParserTest {
     }
 
     @Test
-    fun `viewModel delegation propagates remoteUrl and defaultName`() {
+    fun `viewModel delegation propagates defaultName`() {
         val p = vm().parseProfileFromJson(
             """{"tunnel_key":"k"}""",
-            defaultName = "fallback",
-            remoteUrl = "https://example.com/p.json"
+            defaultName = "fallback"
         )!!
         assertThat(p.name).isEqualTo("fallback")
-        assertThat(p.remoteUrl).isEqualTo("https://example.com/p.json")
     }
 
     @Test

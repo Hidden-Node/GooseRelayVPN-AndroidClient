@@ -86,8 +86,6 @@
     <string name="profiles_share_sheet">اشتراک‌گذاری از طریق…</string>
     <string name="profiles_share_title">اشتراک‌گذاری پروفایل</string>
     <string name="profiles_import_deep_link_success">پروفایل وارد شد: %s</string>
-    <string name="profiles_remote_url">آدرس ریموت (لینک اشتراک)</string>
-    <string name="profiles_remote_url_help">در صورت تنظیم، این پروفایل از این آدرس به‌روزرسانی می‌شود</string>
     <string name="profiles_name">نام پروفایل</string>
     <string name="profiles_host_localhost">&#x2066;127.0.0.1&#x2069; (فقط همین دستگاه)</string>
     <string name="profiles_host_all_interfaces">&#x2066;0.0.0.0&#x2069; (تمام شبکه)</string>
@@ -102,11 +100,8 @@
     <string name="profiles_validation_auth_mismatch">socks_user و socks_pass باید هر دو پر یا هر دو خالی باشند</string>
     <string name="profiles_import_failed_general">خطا در وارد کردن: فرمت JSON، آدرس یا goose-relay:// نامعتبر است.</string>
     <string name="profiles_selected">انتخاب شده</string>
-    <string name="profiles_update_remote">به‌روزرسانی از ریموت</string>
     <string name="profiles_update_success">پروفایل با موفقیت از سرور ریموت به‌روزرسانی شد</string>
     <string name="profiles_update_error">خطا در به‌روزرسانی پروفایل: %1$s</string>
-    <string name="profiles_no_selection_update">لطفاً پروفایلی را برای به‌روزرسانی انتخاب کنید</string>
-    <string name="profiles_no_remote_url">این پروفایل محلی است و آدرس ریموت برای به‌روزرسانی ندارد.</string>
     <string name="profiles_invalid_json_format">فرمت JSON نامعتبر است</string>
     <string name="profiles_import_failed_msg">خطا در وارد کردن: %1$s</string>
     <string name="profiles_export_target_missing">خروجی ناموفق بود: پروفایل دیگر وجود ندارد.</string>
