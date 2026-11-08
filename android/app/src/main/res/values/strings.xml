@@ -202,6 +202,9 @@
     <string name="notification_connecting">Connecting…</string>
     <string name="notification_disconnected">VPN disconnected</string>
     <string name="notification_proxy_active">Proxy mode active on port %1$d</string>
+    <string name="notification_speed_summary" translatable="false">↑ %1$s  ↓ %2$s</string>
+    <string name="notification_detail_traffic" translatable="false">↑ %1$s  ↓ %2$s</string>
+    <string name="notification_detail_duration" translatable="false">%1$s</string>
     <string name="notification_action_disconnect">Disconnect</string>
     <string name="vpn_start_failed">Failed to start VPN service: %1$s</string>
     <string name="vpn_stop_failed">Failed to stop VPN service: %1$s</string>

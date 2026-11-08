@@ -299,7 +299,15 @@ class GooseRelayVpnService : VpnService() {
                     if (pm.isInteractive) {
                         startNotificationTicker()
                     } else {
-                        val notif = buildConnectedNotification(null, 0L, 0L, 0L)
+                        val notif = buildConnectedNotification(
+                            profileName = activeProfileName ?: getString(R.string.app_name),
+                            statusText = getString(R.string.notification_proxy_active, socksPort),
+                            upBps = 0L,
+                            downBps = 0L,
+                            upTotal = VpnManager.uploadTotalBytes.value,
+                            downTotal = VpnManager.downloadTotalBytes.value,
+                            durationSec = 0L
+                        )
                         runCatching { notificationManager.notify(NOTIFICATION_ID, notif) }
                     }
                     startKeepalive()
@@ -480,7 +488,15 @@ class GooseRelayVpnService : VpnService() {
                 if (pm.isInteractive) {
                     startNotificationTicker()
                 } else {
-                    val notif = buildConnectedNotification(null, 0L, 0L, 0L)
+                    val notif = buildConnectedNotification(
+                        profileName = activeProfileName ?: getString(R.string.app_name),
+                        statusText = getString(R.string.notification_connected),
+                        upBps = 0L,
+                        downBps = 0L,
+                        upTotal = VpnManager.uploadTotalBytes.value,
+                        downTotal = VpnManager.downloadTotalBytes.value,
+                        durationSec = 0L
+                    )
                     runCatching { notificationManager.notify(NOTIFICATION_ID, notif) }
                 }
 
@@ -614,17 +630,23 @@ class GooseRelayVpnService : VpnService() {
     }
 
     private fun buildConnectedNotification(
-        speedText: String?,
-        durationSec: Long,
-        totalUp: Long,
-        totalDown: Long
+        profileName: String,
+        statusText: String,
+        upBps: Long,
+        downBps: Long,
+        upTotal: Long,
+        downTotal: Long,
+        durationSec: Long
     ): Notification {
+        val title = profileName.ifBlank { getString(R.string.app_name) }
+
         val builder = NotificationCompat.Builder(this, App.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_vpn_key)
             .setContentIntent(contentPendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
+            .setContentTitle(title)
             .addAction(
                 NotificationCompat.Action.Builder(
                     0,
@@ -633,31 +655,46 @@ class GooseRelayVpnService : VpnService() {
                 ).build()
             )
 
-        val title = activeProfileName ?: getString(R.string.app_name)
-        val status = activeStatusText ?: getString(R.string.notification_connected)
-        val durationStr = TrafficFormatters.formatDuration(durationSec)
-        val upStr = TrafficFormatters.formatBytes(totalUp)
-        val downStr = TrafficFormatters.formatBytes(totalDown)
-
-        if (speedText != null && notificationSpeedEnabled) {
-            builder.setContentTitle("$title  •  $speedText")
-            builder.setContentText("$status  |  $durationStr")
-            builder.setStyle(
-                NotificationCompat.BigTextStyle().bigText(
-                    "$status\n$speedText\n$durationStr  |  ↑ $upStr  ↓ $downStr"
-                )
+        if (notificationSpeedEnabled) {
+            val speedText = getString(
+                R.string.notification_speed_summary,
+                TrafficFormatters.formatSpeed(upBps),
+                TrafficFormatters.formatSpeed(downBps)
             )
+            val expandedText = buildString {
+                append(statusText).append("\n")
+                append(speedText).append("\n")
+                append(getString(
+                    R.string.notification_detail_traffic,
+                    TrafficFormatters.formatBytes(upTotal),
+                    TrafficFormatters.formatBytes(downTotal)
+                )).append("\n")
+                append(getString(
+                    R.string.notification_detail_duration,
+                    TrafficFormatters.formatDuration(durationSec)
+                ))
+            }
+            builder.setContentText(speedText)
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(expandedText))
         } else {
-            builder.setContentTitle(title)
-            builder.setContentText(status)
+            builder.setContentText(statusText)
         }
+
         return builder.build()
     }
 
     private fun startNotificationTicker() {
         notificationTickerJob?.cancel()
         if (!notificationSpeedEnabled) {
-            val notif = buildConnectedNotification(null, 0L, 0L, 0L)
+            val notif = buildConnectedNotification(
+                profileName = activeProfileName ?: getString(R.string.app_name),
+                statusText = activeStatusText ?: getString(R.string.notification_connected),
+                upBps = 0L,
+                downBps = 0L,
+                upTotal = VpnManager.uploadTotalBytes.value,
+                downTotal = VpnManager.downloadTotalBytes.value,
+                durationSec = 0L
+            )
             runCatching { notificationManager.notify(NOTIFICATION_ID, notif) }
             return
         }
@@ -680,7 +717,15 @@ class GooseRelayVpnService : VpnService() {
                 if (!isRedundantZero) {
                     lastSpeedText = speedText
                     lastDurationMinute = currentMinute
-                    val notif = buildConnectedNotification(speedText, duration, totalUp, totalDown)
+                    val notif = buildConnectedNotification(
+                        profileName = activeProfileName ?: getString(R.string.app_name),
+                        statusText = activeStatusText ?: getString(R.string.notification_connected),
+                        upBps = up,
+                        downBps = down,
+                        upTotal = totalUp,
+                        downTotal = totalDown,
+                        durationSec = duration
+                    )
                     runCatching { notificationManager.notify(NOTIFICATION_ID, notif) }
                 }
                 delay(2500L)
