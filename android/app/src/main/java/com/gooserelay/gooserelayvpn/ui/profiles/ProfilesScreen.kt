@@ -10,10 +10,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -385,24 +386,26 @@ fun ProfilesScreen(
         } else {
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                 if (subscriptions.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = MdvSpace.S3, vertical = MdvSpace.S2),
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = MdvSpace.S3, vertical = MdvSpace.S2),
                         horizontalArrangement = Arrangement.spacedBy(MdvSpace.S2)
                     ) {
-                        MdvFilterChip(
-                            selected = selectedSubscriptionId == null,
-                            label = stringResource(R.string.subscriptions_all_filter),
-                            onClick = { selectedSubscriptionId = null }
-                        )
-                        subscriptions.forEach { subscription ->
+                        item(key = "all") {
+                            MdvFilterChip(
+                                selected = selectedSubscriptionId == null,
+                                label = stringResource(R.string.subscriptions_all_filter),
+                                onClick = { selectedSubscriptionId = null }
+                            )
+                        }
+                        items(subscriptions, key = { it.id }) { subscription ->
                             val count = profiles.count { it.subscriptionId == subscription.id }
                             MdvFilterChip(
                                 selected = selectedSubscriptionId == subscription.id,
                                 label = "${subscription.name} ($count)",
-                                onClick = { selectedSubscriptionId = subscription.id }
+                                onClick = {
+                                    selectedSubscriptionId = if (selectedSubscriptionId == subscription.id) null else subscription.id
+                                }
                             )
                         }
                     }
