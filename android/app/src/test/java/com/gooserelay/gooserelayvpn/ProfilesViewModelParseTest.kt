@@ -128,9 +128,20 @@ class ProfilesViewModelParseTest {
     fun `extractWebUrl strips enclosing brackets and trailing punctuation`() {
         assertThat(ProfilesViewModel.extractWebUrl("<https://example.com/sub>")).isEqualTo("https://example.com/sub")
         assertThat(ProfilesViewModel.extractWebUrl("\"https://example.com/sub\"")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("[https://example.com/sub]")).isEqualTo("https://example.com/sub")
         assertThat(ProfilesViewModel.extractWebUrl("https://example.com/sub.")).isEqualTo("https://example.com/sub")
         assertThat(ProfilesViewModel.extractWebUrl("https://example.com/sub,")).isEqualTo("https://example.com/sub")
         assertThat(ProfilesViewModel.extractWebUrl("(https://example.com/sub)")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("(https://example.com/sub).")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("https://example.com/feed_(v2)")).isEqualTo("https://example.com/feed_(v2)")
+        assertThat(ProfilesViewModel.extractWebUrl("(https://example.com/feed_(v2))")).isEqualTo("https://example.com/feed_(v2)")
+    }
+
+    @Test
+    fun `extractWebUrl finds url when preceded by labels or leading newlines`() {
+        assertThat(ProfilesViewModel.extractWebUrl("\n\nhttps://example.com/sub")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("Config: https://example.com/sub")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("My Subscription:\nhttps://example.com/sub\nUpdated 2026")).isEqualTo("https://example.com/sub")
     }
 
     @Test
@@ -138,8 +149,11 @@ class ProfilesViewModelParseTest {
         assertThat(ProfilesViewModel.extractWebUrl(null)).isNull()
         assertThat(ProfilesViewModel.extractWebUrl("")).isNull()
         assertThat(ProfilesViewModel.extractWebUrl("   ")).isNull()
+        assertThat(ProfilesViewModel.extractWebUrl("https://")).isNull()
+        assertThat(ProfilesViewModel.extractWebUrl("http://")).isNull()
         assertThat(ProfilesViewModel.extractWebUrl("goose-relay://host:1234")).isNull()
         assertThat(ProfilesViewModel.extractWebUrl("""{"name":"test"}""")).isNull()
+        assertThat(ProfilesViewModel.extractWebUrl("""{"remoteUrl":"https://example.com"}""")).isNull()
         assertThat(ProfilesViewModel.extractWebUrl("ftp://example.com/sub")).isNull()
     }
 }

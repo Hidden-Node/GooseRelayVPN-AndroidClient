@@ -286,18 +286,40 @@ class ProfilesViewModel @Inject constructor(
     companion object {
         fun extractWebUrl(raw: String?): String? {
             if (raw.isNullOrBlank()) return null
-            val firstLine = raw.lines().firstOrNull()?.trim() ?: return null
-            val candidate = firstLine.split(Regex("\\s+")).firstOrNull()?.trim() ?: return null
-            val token = candidate
-                .removePrefix("<").removePrefix("\"").removePrefix("'").removePrefix("(")
-                .trimEnd('.', ',', ';', ':', ')', '>', '"', '\'')
-            return if (token.startsWith("http://", ignoreCase = true) ||
-                token.startsWith("https://", ignoreCase = true)
-            ) {
-                token
-            } else {
-                null
+            val trimmed = raw.trim()
+            if (trimmed.startsWith("{") || trimmed.startsWith("goose-relay://", ignoreCase = true)) {
+                return null
             }
+
+            for (line in trimmed.lines()) {
+                val lineTrimmed = line.trim()
+                if (lineTrimmed.isEmpty()) continue
+                val tokens = lineTrimmed.split(Regex("\\s+"))
+                for (cand in tokens) {
+                    var cur = cand.trimEnd('.', ',', ';', ':')
+                    while (cur.length >= 2) {
+                        when {
+                            cur.startsWith("(") && cur.endsWith(")") -> cur = cur.substring(1, cur.length - 1)
+                            cur.startsWith("[") && cur.endsWith("]") -> cur = cur.substring(1, cur.length - 1)
+                            cur.startsWith("<") && cur.endsWith(">") -> cur = cur.substring(1, cur.length - 1)
+                            cur.startsWith("\"") && cur.endsWith("\"") -> cur = cur.substring(1, cur.length - 1)
+                            cur.startsWith("'") && cur.endsWith("'") -> cur = cur.substring(1, cur.length - 1)
+                            else -> break
+                        }
+                    }
+                    val token = cur
+                        .removePrefix("<").removePrefix("\"").removePrefix("'").removePrefix("[").removePrefix("(")
+                        .trimEnd('.', ',', ';', ':', '>', '"', '\'', ']')
+
+                    if ((token.startsWith("http://", ignoreCase = true) ||
+                            token.startsWith("https://", ignoreCase = true)) &&
+                        token.substringAfter("://").isNotBlank()
+                    ) {
+                        return token
+                    }
+                }
+            }
+            return null
         }
     }
 }

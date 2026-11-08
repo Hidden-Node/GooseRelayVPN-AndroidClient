@@ -1123,7 +1123,7 @@ private fun UrlChoiceDialog(
                     text = url,
                     style = MaterialTheme.typography.bodySmall.copy(
                         textDirection = TextDirection.Ltr,
-                        textAlign = TextAlign.Start
+                        textAlign = TextAlign.Left
                     ),
                     color = MdvColor.Primary,
                     maxLines = 3,
