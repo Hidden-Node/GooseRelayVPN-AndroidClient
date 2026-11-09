@@ -296,7 +296,14 @@ class ProfilesViewModel @Inject constructor(
                 if (lineTrimmed.isEmpty()) continue
                 val tokens = lineTrimmed.split(Regex("\\s+"))
                 for (cand in tokens) {
-                    var cur = cand.trimEnd('.', ',', ';', ':')
+                    val rawCand = if (cand.contains("](http://", ignoreCase = true) ||
+                        cand.contains("](https://", ignoreCase = true)
+                    ) {
+                        cand.substring(cand.indexOf("](") + 1)
+                    } else {
+                        cand
+                    }
+                    var cur = rawCand.trimEnd('.', ',', ';', ':')
                     while (cur.length >= 2) {
                         when {
                             cur.startsWith("(") && cur.endsWith(")") -> cur = cur.substring(1, cur.length - 1)

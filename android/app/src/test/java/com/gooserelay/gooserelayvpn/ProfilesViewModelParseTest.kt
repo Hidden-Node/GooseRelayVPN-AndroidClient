@@ -145,6 +145,14 @@ class ProfilesViewModelParseTest {
     }
 
     @Test
+    fun `extractWebUrl extracts url from markdown link syntax`() {
+        assertThat(ProfilesViewModel.extractWebUrl("[Link](https://example.com/sub)")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("[My Subscription](https://example.com/sub)")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("Check [here](https://example.com/sub).")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("[Node](https://example.com/feed_(v2))")).isEqualTo("https://example.com/feed_(v2)")
+    }
+
+    @Test
     fun `extractWebUrl returns null for non-http text or json`() {
         assertThat(ProfilesViewModel.extractWebUrl(null)).isNull()
         assertThat(ProfilesViewModel.extractWebUrl("")).isNull()

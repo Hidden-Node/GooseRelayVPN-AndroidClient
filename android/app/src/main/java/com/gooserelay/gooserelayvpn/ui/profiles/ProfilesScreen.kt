@@ -315,6 +315,11 @@ fun ProfilesScreen(
                                         if (profile != null) {
                                             selectedSubscriptionId = null
                                             viewModel.addProfile(profile)
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(R.string.profiles_import_deep_link_success, profile.name)
+                                                )
+                                            }
                                         } else {
                                             showErrorDialog = context.getString(R.string.profiles_import_failed_general)
                                         }
