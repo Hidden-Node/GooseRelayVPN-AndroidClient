@@ -299,7 +299,24 @@ class ProfilesViewModel @Inject constructor(
                     val rawCand = if (cand.contains("](http://", ignoreCase = true) ||
                         cand.contains("](https://", ignoreCase = true)
                     ) {
-                        cand.substring(cand.indexOf("](") + 1)
+                        val afterBracket = cand.substring(cand.indexOf("](") + 1)
+                        if (afterBracket.startsWith("(")) {
+                            var depth = 0
+                            var endIdx = -1
+                            for (i in afterBracket.indices) {
+                                if (afterBracket[i] == '(') depth++
+                                else if (afterBracket[i] == ')') {
+                                    depth--
+                                    if (depth == 0) {
+                                        endIdx = i
+                                        break
+                                    }
+                                }
+                            }
+                            if (endIdx != -1) afterBracket.substring(0, endIdx + 1) else afterBracket
+                        } else {
+                            afterBracket
+                        }
                     } else {
                         cand
                     }

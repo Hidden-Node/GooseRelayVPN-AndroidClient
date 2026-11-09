@@ -150,6 +150,10 @@ class ProfilesViewModelParseTest {
         assertThat(ProfilesViewModel.extractWebUrl("[My Subscription](https://example.com/sub)")).isEqualTo("https://example.com/sub")
         assertThat(ProfilesViewModel.extractWebUrl("Check [here](https://example.com/sub).")).isEqualTo("https://example.com/sub")
         assertThat(ProfilesViewModel.extractWebUrl("[Node](https://example.com/feed_(v2))")).isEqualTo("https://example.com/feed_(v2)")
+        assertThat(ProfilesViewModel.extractWebUrl("[Feed](https://example.com/sub)v2")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("[Feed](https://example.com/sub);text")).isEqualTo("https://example.com/sub")
+        assertThat(ProfilesViewModel.extractWebUrl("[Node](https://example.com/feed_(v2))suffix")).isEqualTo("https://example.com/feed_(v2)")
+        assertThat(ProfilesViewModel.extractWebUrl("[Feed](https://a.com)[Other](https://b.com)")).isEqualTo("https://a.com")
     }
 
     @Test
