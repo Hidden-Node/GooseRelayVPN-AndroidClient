@@ -448,7 +448,7 @@ fun ProfilesScreen(
                                 )
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(MdvSpace.S3),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     if (profile.isSelected) {
@@ -826,7 +826,7 @@ private fun ProfileEditorDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
             ) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.profiles_name)) })
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -903,7 +903,7 @@ private fun ScriptKeysEditor(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
     ) {
         Text(
             stringResource(R.string.profiles_script_keys_hint),
@@ -912,12 +912,9 @@ private fun ScriptKeysEditor(
         )
 
         entries.forEachIndexed { index, entry ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceLow)
-            ) {
+            MdvCardLow(modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(MdvSpace.S1),
                     verticalAlignment = Alignment.Top
                 ) {
                     Column(

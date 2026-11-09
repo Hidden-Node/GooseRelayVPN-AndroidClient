@@ -33,8 +33,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -90,9 +88,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gooserelay.gooserelayvpn.R
+import com.gooserelay.gooserelayvpn.ui.components.mdv.cards.MdvCardHigh
+import com.gooserelay.gooserelayvpn.ui.components.mdv.cards.MdvCardLow
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvFilterChip
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
+import com.gooserelay.gooserelayvpn.ui.theme.MdvRadius
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.GlobalSettings
 import com.gooserelay.gooserelayvpn.util.SplitTunnelMode
@@ -249,7 +250,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                 ) {
                     item { LanguagePickerCard() }
                     item {
-                        Card(colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh)) {
+                        MdvCardHigh(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(MdvSpace.S3), verticalArrangement = Arrangement.spacedBy(MdvSpace.S3)) {
                         ExposedDropdownMenuBox(
                             expanded = modeExpanded,
@@ -337,7 +338,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                 )
                             }
                             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(MdvSpace.S2))
-                            Card(
+                            MdvCardLow(
                                 onClick = {
                                     draftAppSelection = parseCsv(draft.splitPackagesCsv).toMutableSet()
                                     availableQuery = ""
@@ -380,7 +381,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                 }
             }
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh)) {
+                MdvCardHigh(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(MdvSpace.S3),
                         verticalArrangement = Arrangement.spacedBy(MdvSpace.S3)
@@ -413,7 +414,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(MdvSpace.S2)
                             ) {
                                 OutlinedTextField(
                                     value = sharingSocksPortText,
@@ -561,7 +562,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 640.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(MdvRadius.Lg),
                 color = MdvColor.Surface
             ) {
                 Column(
@@ -638,7 +639,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
 
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(MdvRadius.Md),
                             color = MdvColor.SurfaceHigh
                         ) {
                             Column(
@@ -668,7 +669,7 @@ fun GlobalSettingsScreen(vm: GlobalSettingsViewModel = viewModel()) {
                                         emptyText,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MdvColor.OnSurfaceVariant,
-                                        modifier = Modifier.padding(top = 8.dp)
+                                        modifier = Modifier.padding(top = MdvSpace.S2)
                                     )
                                 } else {
                                     LazyColumn(
@@ -735,7 +736,7 @@ private fun AppRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onToggle() }
-            .padding(vertical = 4.dp),
+            .padding(vertical = MdvSpace.S1),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -757,7 +758,7 @@ private fun AppRow(
                     modifier = Modifier.size(24.dp)
                 )
             }
-            Spacer(modifier = Modifier.size(8.dp))
+            Spacer(modifier = Modifier.size(MdvSpace.S2))
             Column {
                 Text(text = app.label)
                 Text(text = app.packageName)
@@ -876,10 +877,7 @@ private fun LanguagePickerCard() {
 
     var expanded by remember { mutableStateOf(false) }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    MdvCardHigh(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier

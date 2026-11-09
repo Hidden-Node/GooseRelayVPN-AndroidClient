@@ -23,8 +23,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,8 +42,11 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.gooserelay.gooserelayvpn.BuildConfig
 import com.gooserelay.gooserelayvpn.R
+import com.gooserelay.gooserelayvpn.ui.components.mdv.cards.MdvCardHigh
+import com.gooserelay.gooserelayvpn.ui.components.mdv.cards.MdvCardLow
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
+import com.gooserelay.gooserelayvpn.ui.theme.MdvRadius
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,10 +74,9 @@ fun InfoScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(MdvSpace.S3)
         ) {
             item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceLow),
-                    modifier = Modifier.fillMaxWidth()
+                MdvCardLow(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(MdvRadius.Xl)
                 ) {
                     Box(
                         modifier = Modifier
@@ -99,7 +99,7 @@ fun InfoScreen(onBack: () -> Unit) {
                                     .size(64.dp)
                                     .clip(CircleShape)
                             )
-                            Spacer(modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.size(MdvSpace.S3))
                             Column {
                                 Text(
                                     text = stringResource(R.string.info_app_name_title),
@@ -111,7 +111,7 @@ fun InfoScreen(onBack: () -> Unit) {
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MdvColor.OnSurface
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(MdvSpace.S2))
                                 AssistChip(
                                     onClick = {},
                                     enabled = false,
@@ -135,10 +135,10 @@ fun InfoScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh)) {
+                MdvCardHigh(modifier = Modifier.fillMaxWidth()) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.padding(MdvSpace.S4),
+                        verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
                     ) {
                         Text(stringResource(R.string.info_project_links), style = MaterialTheme.typography.titleMedium)
                         InfoLinkRow(
@@ -155,10 +155,10 @@ fun InfoScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = MdvColor.SurfaceHigh)) {
+                MdvCardHigh(modifier = Modifier.fillMaxWidth()) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.padding(MdvSpace.S4),
+                        verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
                     ) {
                         Text(stringResource(R.string.info_version_info), style = MaterialTheme.typography.titleMedium)
                         InfoValueRow(label = stringResource(R.string.info_app_version), value = BuildConfig.VERSION_NAME)

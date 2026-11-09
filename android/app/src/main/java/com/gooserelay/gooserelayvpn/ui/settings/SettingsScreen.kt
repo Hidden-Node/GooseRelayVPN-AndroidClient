@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gooserelay.gooserelayvpn.R
 import com.gooserelay.gooserelayvpn.ui.components.mdv.controls.MdvBackTopAppBar
+import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -56,7 +57,7 @@ fun SettingsScreen(
 
     if (profile == null) {
         Scaffold(topBar = { MdvBackTopAppBar(title = stringResource(R.string.profile_settings_title), onBack = onBack) }) { p ->
-            Text(stringResource(R.string.settings_no_profile_title), modifier = Modifier.padding(p).padding(16.dp))
+            Text(stringResource(R.string.settings_no_profile_title), modifier = Modifier.padding(p).padding(MdvSpace.S4))
         }
         return
     }
@@ -183,8 +184,8 @@ fun SettingsScreen(
         }
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxSize().padding(padding).padding(MdvSpace.S4),
+            verticalArrangement = Arrangement.spacedBy(MdvSpace.S2)
         ) {
             val contentTextStyle = LocalTextStyle.current.copy(
                 textDirection = TextDirection.Ltr,
@@ -201,7 +202,7 @@ fun SettingsScreen(
             OutlinedTextField(sniText, { sniText = it }, label = { Text(stringResource(R.string.settings_sni)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(scriptKeys, { scriptKeys = it }, label = { Text(stringResource(R.string.settings_script_keys)) }, textStyle = contentTextStyle, minLines = 3, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(tunnelKey, { tunnelKey = it }, label = { Text(stringResource(R.string.settings_tunnel_key)) }, textStyle = contentTextStyle, modifier = Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(MdvSpace.S2), modifier = Modifier.fillMaxWidth()) {
                 Button(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.settings_import_file)) }
                 Button(onClick = {
                     val text = clipboardManager.getText()?.text

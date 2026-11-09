@@ -28,6 +28,7 @@ import com.gooserelay.gooserelayvpn.ui.components.mdv.cards.MdvCardLow
 import com.gooserelay.gooserelayvpn.ui.theme.ConnectedGreen
 import com.gooserelay.gooserelayvpn.ui.theme.DisconnectedRed
 import com.gooserelay.gooserelayvpn.ui.theme.MdvColor
+import com.gooserelay.gooserelayvpn.ui.theme.MdvRadius
 import com.gooserelay.gooserelayvpn.ui.theme.MdvSpace
 import com.gooserelay.gooserelayvpn.util.TrafficFormatters
 import com.gooserelay.gooserelayvpn.util.VpnManager
@@ -104,7 +105,7 @@ fun MdvConnectionTelemetryCard(
                     vpnState == VpnManager.VpnState.CONNECTED ||
                     vpnState == VpnManager.VpnState.CONNECTING
                 ) {
-                    Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
+                    Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = MdvSpace.S2)) {
                         Text(
                             text = stringResource(R.string.home_status_session),
                             style = MaterialTheme.typography.labelSmall,
@@ -132,7 +133,7 @@ fun MdvConnectionTelemetryCard(
                     // Download Column
                     androidx.compose.material3.Surface(
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(MdvRadius.Md),
                         color = MdvColor.SurfaceHigh
                     ) {
                         Column(
@@ -145,7 +146,7 @@ fun MdvConnectionTelemetryCard(
                                 color = ConnectedGreen,
                                 fontWeight = FontWeight.Bold
                             )
-                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(4.dp))
+                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(MdvSpace.S1))
                             Text(
                                 text = TrafficFormatters.formatSpeed(downBps),
                                 style = MaterialTheme.typography.titleMedium,
@@ -163,7 +164,7 @@ fun MdvConnectionTelemetryCard(
                     // Upload Column
                     androidx.compose.material3.Surface(
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(MdvRadius.Md),
                         color = MdvColor.SurfaceHigh
                     ) {
                         Column(
@@ -176,7 +177,7 @@ fun MdvConnectionTelemetryCard(
                                 color = MdvColor.PrimaryContainer,
                                 fontWeight = FontWeight.Bold
                             )
-                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(4.dp))
+                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(MdvSpace.S1))
                             Text(
                                 text = TrafficFormatters.formatSpeed(upBps),
                                 style = MaterialTheme.typography.titleMedium,
@@ -198,7 +199,7 @@ fun MdvConnectionTelemetryCard(
                 androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(MdvSpace.S3))
                 androidx.compose.material3.Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(MdvRadius.Md),
                     color = MdvColor.SurfaceHigh
                 ) {
                     Column(
@@ -286,14 +287,14 @@ fun MdvConnectionTelemetryCard(
                         }
 
                         if (scanStatus.accountStats.isNotBlank()) {
-                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(MdvSpace.S2))
                             androidx.compose.foundation.layout.Spacer(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(1.dp)
                                     .background(MdvColor.SurfaceHighest)
                             )
-                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(MdvSpace.S2))
                             Text(
                                 text = stringResource(R.string.home_core_stats_accounts),
                                 style = MaterialTheme.typography.labelSmall,
@@ -329,7 +330,7 @@ fun MdvConnectionTelemetryCard(
                         Text("$proxyHost:$proxyPort", style = MaterialTheme.typography.bodySmall, color = MdvColor.OnSurface, fontWeight = FontWeight.Bold)
                     }
                     if (socksAuthEnabled) {
-                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(4.dp))
+                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(MdvSpace.S1))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(stringResource(R.string.home_status_socks5_auth), style = MaterialTheme.typography.bodySmall, color = MdvColor.OnSurfaceVariant)
                             Text(stringResource(R.string.home_status_enabled), style = MaterialTheme.typography.bodySmall, color = MdvColor.OnSurface, fontWeight = FontWeight.Bold)
